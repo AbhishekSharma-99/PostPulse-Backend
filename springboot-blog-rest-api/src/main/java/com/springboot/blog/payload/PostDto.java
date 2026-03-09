@@ -1,6 +1,5 @@
 package com.springboot.blog.payload;
 
-import com.springboot.blog.entity.Comment;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;

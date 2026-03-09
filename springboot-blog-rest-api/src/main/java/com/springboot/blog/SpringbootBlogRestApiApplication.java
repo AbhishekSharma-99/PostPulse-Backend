@@ -47,18 +47,19 @@ public class SpringbootBlogRestApiApplication implements CommandLineRunner {
 		SpringApplication.run(SpringbootBlogRestApiApplication.class, args);
 	}
 
-	@Autowired
+	@Autowired(required = false)
 	private RoleRepository roleRepository;
 
 	@Override
 	public void run(String... args) throws Exception {
+		if (roleRepository != null) {
+			Role adminRole = new Role();
+			adminRole.setName("ROLE_ADMIN");
+			roleRepository.save(adminRole);
 
-		Role adminRole = new Role();
-		adminRole.setName("ROLE_ADMIN");
-		roleRepository.save(adminRole);
-
-		Role userRole = new Role();
-		userRole.setName("ROLE_USER");
-		roleRepository.save(userRole);
+			Role userRole = new Role();
+			userRole.setName("ROLE_USER");
+			roleRepository.save(userRole);
+		}
 	}
 }
