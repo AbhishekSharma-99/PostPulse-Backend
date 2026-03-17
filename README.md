@@ -1,30 +1,33 @@
 # PostPulse-Backend
 
-**PostPulse-Backend** is a modern, scalable RESTful API backend for a blogging platform, built with Java and Spring Boot. It provides robust features such as user authentication, role-based authorization, post and category management, comment handling, and powerful search capabilities. This backend is designed to serve as a solid foundation for web and mobile blogging applications.
+**PostPulse-Backend** is a modern, scalable RESTful API backend for a blogging platform, built with Java and Spring
+Boot. It provides robust features such as user authentication, role-based authorization, post and category management,
+comment handling, and powerful search capabilities. This backend is designed to serve as a solid foundation for web and
+mobile blogging applications.
 
 ---
 
 ## Features
 
 - **User Authentication & Authorization**
-  - Secure JWT-based authentication.
-  - Role-based access control (ADMIN, USER).
+    - Secure JWT-based authentication.
+    - Role-based access control (ADMIN, USER).
 
 - **Post Management**
-  - Full CRUD (Create, Read, Update, Delete) operations for blog posts.
-  - Each post contains a title, description, content, and category association.
+    - Full CRUD (Create, Read, Update, Delete) operations for blog posts.
+    - Each post contains a title, description, content, and category association.
 
 - **Category Management**
-  - Organize posts into categories for easy navigation and filtering.
+    - Organize posts into categories for easy navigation and filtering.
 
 - **Comment System**
-  - Users can add, view, and manage comments on blog posts.
+    - Users can add, view, and manage comments on blog posts.
 
 - **Search Functionality**
-  - Search for posts using keywords for better content discoverability.
+    - Search for posts using keywords for better content discoverability.
 
 - **API Documentation**
-  - Interactive Swagger documentation for easy API exploration and testing.
+    - Interactive Swagger documentation for easy API exploration and testing.
 
 ---
 
@@ -56,13 +59,13 @@
    ```
 
 2. **Configure the Database**
-   - Create a MySQL database (e.g., `postpulse_db`).
-   - Update your database credentials in `src/main/resources/application.properties`:
-     ```
-     spring.datasource.url=jdbc:mysql://localhost:3306/postpulse_db
-     spring.datasource.username=your_mysql_username
-     spring.datasource.password=your_mysql_password
-     ```
+    - Create a MySQL database (e.g., `postpulse_db`).
+    - Update your database credentials in `src/main/resources/application.properties`:
+      ```
+      spring.datasource.url=jdbc:mysql://localhost:3306/postpulse_db
+      spring.datasource.username=your_mysql_username
+      spring.datasource.password=your_mysql_password
+      ```
 
 3. **Build and Run the Application**
    ```bash
@@ -71,7 +74,7 @@
    ```
 
 4. **Access the API Documentation**
-   - Open your browser and navigate to: [http://localhost:8080/swagger-ui/](http://localhost:8080/swagger-ui/)
+    - Open your browser and navigate to: [http://localhost:8080/swagger-ui/](http://localhost:8080/swagger-ui/)
 
 ---
 
@@ -93,7 +96,8 @@ PostPulse-Backend/
 ## Usage
 
 - Use Postman or any REST client to interact with the API endpoints.
-- For authentication, obtain a JWT token using the login endpoint and include it in the `Authorization` header as `Bearer <token>`.
+- For authentication, obtain a JWT token using the login endpoint and include it in the `Authorization` header as
+  `Bearer <token>`.
 
 ---
 
