@@ -60,6 +60,7 @@ class PostServiceImplTest {
         category.setName("Technology");
 
         postDto = new PostDto();
+        postDto.setId(1L);
         postDto.setTitle("Test Title");
         postDto.setDescription("Test Description");
         postDto.setContent("Test Content");
@@ -287,6 +288,56 @@ class PostServiceImplTest {
         verify(postRepository, times(1)).findAll(expectedPageable);
 
         // ModelMapper completely untouched — no posts means no mapping
-        verifyNoInteractions(modelMapper);
+        verify(modelMapper, never()).map(any(Post.class), eq(PostDto.class));
+    }
+
+    // =====================================================================
+    // getPostById — Exact Matching
+    // Reason: findById() takes a simple Long ID — exact matching confirms
+    // the service passed the correct ID without any ArgumentCaptor overhead.
+    // ModelMapper uses any(Post.class) due to Mockito's technical limitation
+    // with generic methods — not a strategy choice but a necessity.
+    // =====================================================================
+
+    @Test
+    @DisplayName("Should return post when valid ID is provided")
+    void getPostById_Success() {
+
+        // --- ARRANGE ---
+        when(postRepository.findById(1L))
+                .thenReturn(Optional.of(savedPost));
+
+        when(modelMapper.map(any(Post.class), eq(PostDto.class)))
+                .thenReturn(postDto);
+
+        // --- ACT ---
+        PostDto result = postService.getPostById(1L);
+
+        // --- ASSERT ---
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getTitle()).isEqualTo("Test Title");
+        assertThat(result.getDescription()).isEqualTo("Test Description");
+        assertThat(result.getContent()).isEqualTo("Test Content");
+
+        // Exact verify — confirms service used the exact ID we passed
+        verify(postRepository, times(1)).findById(1L);
+        verify(modelMapper, times(1)).map(savedPost, PostDto.class);
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when post ID does not exist")
+    void getPostById_NotFound() {
+
+        // --- ARRANGE ---
+        when(postRepository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        // --- ACT & ASSERT ---
+        assertThatThrownBy(() -> postService.getPostById(99L))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(postRepository, times(1)).findById(99L);
+        verify(modelMapper, never()).map(any(Post.class), eq(PostDto.class));
     }
 }
