@@ -4,6 +4,7 @@ import com.postpulse.entity.Category;
 import com.postpulse.entity.Post;
 import com.postpulse.exception.ResourceNotFoundException;
 import com.postpulse.payload.PostDto;
+import com.postpulse.payload.PostResponse;
 import com.postpulse.repository.CategoryRepository;
 import com.postpulse.repository.PostRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,13 +15,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.*;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class) // Tells JUnit 5 to enable Mockito annotations — without this, @Mock and @InjectMocks won't work
@@ -77,6 +79,10 @@ class PostServiceImplTest {
         savedPost.setContent("Test Content");
         savedPost.setCategory(category);
     }
+
+    // =====================================================================
+    // TEST CASES FOR createPost() METHOD
+    // =====================================================================
 
     @Test
     @DisplayName("Should successfully create a post when category exists")
@@ -162,5 +168,125 @@ class PostServiceImplTest {
         // Verify that since category wasn't found, we never reached the save() call
         // This confirms our service exits early as expected
         verify(postRepository, never()).save(any(Post.class));
+    }
+
+    // =====================================================================
+    // getAllPosts — Exact Matching
+    // Reason: The service constructs a Pageable from 4 external parameters.
+    // Exact matching ensures all 4 (pageNo, pageSize, sortBy, sortDir)
+    // are correctly wired into the Pageable — any(Pageable.class) would
+    // silently pass even if the service hardcoded wrong values.
+    // =====================================================================
+
+    @Test
+    @DisplayName("Should return paginated posts with ASC sort direction")
+    void getAllPosts_Success_AscendingSort() {
+
+        // --- ARRANGE ---
+        int pageNo = 0;
+        int pageSize = 10;
+        String sortBy = "title";
+        String sortDir = "ASC";
+
+        // Building the exact Pageable we expect the service to construct
+        Pageable expectedPageable = PageRequest.of(
+                pageNo, pageSize, Sort.by(sortBy).ascending()
+        );
+
+        Page<Post> postPage = new PageImpl<>(
+                List.of(savedPost), expectedPageable, 1
+        );
+
+        when(postRepository.findAll(expectedPageable))
+                .thenReturn(postPage);
+
+        when(modelMapper.map(savedPost, PostDto.class))
+                .thenReturn(postDto);
+
+        // --- ACT ---
+        PostResponse result = postService.getAllPosts(pageNo, pageSize, sortBy, sortDir);
+
+        // --- ASSERT ---
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().getFirst().getTitle()).isEqualTo("Test Title");
+        assertThat(result.getPageNo()).isEqualTo(0);
+        assertThat(result.getPageSize()).isEqualTo(10);
+        assertThat(result.getTotalElement()).isEqualTo(1L);
+        assertThat(result.getTotalPages()).isEqualTo(1);
+        assertThat(result.isLast()).isTrue();
+
+        // Exact verify — wrong pageNo/pageSize/sort would fail here
+        verify(postRepository, times(1)).findAll(expectedPageable);
+        verify(modelMapper, times(1)).map(savedPost, PostDto.class);
+    }
+
+    @Test
+    @DisplayName("Should return paginated posts with DESC sort direction")
+    void getAllPosts_Success_DescendingSort() {
+
+        // --- ARRANGE ---
+        int pageNo = 0;
+        int pageSize = 5;
+        String sortBy = "title";
+        String sortDir = "DESC";
+
+        Pageable expectedPageable = PageRequest.of(
+                pageNo, pageSize, Sort.by(sortBy).descending()
+        );
+
+        Page<Post> postPage = new PageImpl<>(
+                List.of(savedPost), expectedPageable, 1
+        );
+
+        when(postRepository.findAll(expectedPageable))
+                .thenReturn(postPage);
+
+        when(modelMapper.map(savedPost, PostDto.class))
+                .thenReturn(postDto);
+
+        // --- ACT ---
+        PostResponse result = postService.getAllPosts(pageNo, pageSize, sortBy, sortDir);
+
+        // --- ASSERT ---
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().getFirst().getTitle()).isEqualTo("Test Title");
+
+        verify(postRepository, times(1)).findAll(expectedPageable);
+    }
+
+    @Test
+    @DisplayName("Should return empty content when no posts exist")
+    void getAllPosts_EmptyPage() {
+
+        // --- ARRANGE ---
+        int pageNo = 0;
+        int pageSize = 10;
+        String sortBy = "title";
+        String sortDir = "ASC";
+
+        Pageable expectedPageable = PageRequest.of(
+                pageNo, pageSize, Sort.by(sortBy).ascending()
+        );
+
+        Page<Post> emptyPage = new PageImpl<>(List.of(), expectedPageable, 0);
+
+        when(postRepository.findAll(expectedPageable))
+                .thenReturn(emptyPage);
+
+        // --- ACT ---
+        PostResponse result = postService.getAllPosts(pageNo, pageSize, sortBy, sortDir);
+
+        // --- ASSERT ---
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).isEmpty();
+        assertThat(result.getTotalElement()).isEqualTo(0);
+        assertThat(result.isLast()).isTrue();
+
+        verify(postRepository, times(1)).findAll(expectedPageable);
+
+        // ModelMapper completely untouched — no posts means no mapping
+        verifyNoInteractions(modelMapper);
     }
 }
