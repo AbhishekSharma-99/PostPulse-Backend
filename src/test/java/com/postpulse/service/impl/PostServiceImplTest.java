@@ -458,4 +458,53 @@ class PostServiceImplTest {
         verify(postRepository, times(1)).findById(99L);
         verify(postRepository, never()).save(any(Post.class));
     }
+
+    // =====================================================================
+    // deletePost — Exact Matching
+    // Reason: delete() receives a specific Post object fetched by ID.
+    // No internal mutation happens — the service just fetches and deletes.
+    // Exact matching confirms the RIGHT post was deleted.
+    // ArgumentCaptor here would be overkill — there's nothing to inspect
+    // since the object passed to delete() is exactly what findById returned.
+    // =====================================================================
+
+    @Test
+    @DisplayName("Should successfully delete post when valid ID is provided")
+    void deletePost_Success() {
+
+        // --- ARRANGE ---
+        when(postRepository.findById(1L))
+                .thenReturn(Optional.of(savedPost));
+
+        doNothing().when(postRepository).delete(savedPost);
+
+        // --- ACT ---
+        postService.deletePost(1L);
+
+        // --- ASSERT ---
+        verify(postRepository, times(1)).findById(1L);
+
+        // Exact match — confirms the correct post object was deleted
+        // not just any post, but specifically the one fetched by ID 1L
+        verify(postRepository, times(1)).delete(savedPost);
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when post ID does not exist during delete")
+    void deletePost_NotFound() {
+
+        // --- ARRANGE ---
+        when(postRepository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        // --- ACT & ASSERT ---
+        assertThatThrownBy(() -> postService.deletePost(99L))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(postRepository, times(1)).findById(99L);
+
+        // Most critical assertion for delete —
+        // confirms nothing was deleted when post wasn't found
+        verify(postRepository, never()).delete(any(Post.class));
+    }
 }
