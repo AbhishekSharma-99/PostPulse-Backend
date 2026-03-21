@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -255,6 +256,7 @@ class PostServiceImplTest {
         assertThat(result.getContent().getFirst().getTitle()).isEqualTo("Test Title");
 
         verify(postRepository, times(1)).findAll(expectedPageable);
+        verify(modelMapper, times(1)).map(any(Post.class), eq(PostDto.class));
     }
 
     @Test
@@ -339,5 +341,121 @@ class PostServiceImplTest {
 
         verify(postRepository, times(1)).findById(99L);
         verify(modelMapper, never()).map(any(Post.class), eq(PostDto.class));
+    }
+
+    // =====================================================================
+    // updatePost — ArgumentCaptor
+    // Reason: The service fetches an existing post then mutates MULTIPLE
+    // fields (title, description, content, category) before saving.
+    // ArgumentCaptor lets us intercept the exact mutated object and
+    // assert every field was correctly updated — something any(Post.class)
+    // completely misses and exact matching can't do since the object
+    // is built and mutated entirely inside the service.
+    @Test
+    @DisplayName("Should successfully update post when post and category both exist")
+    void updatePost_Success() {
+
+        // --- ARRANGE ---
+        PostDto updatedPostDto = new PostDto();
+        updatedPostDto.setTitle("Updated Title");
+        updatedPostDto.setDescription("Updated Description");
+        updatedPostDto.setContent("Updated Content");
+        updatedPostDto.setCategoryId(1L);
+
+        Post updatedPost = new Post();
+        updatedPost.setId(1L);
+        updatedPost.setTitle("Updated Title");
+        updatedPost.setDescription("Updated Description");
+        updatedPost.setContent("Updated Content");
+        updatedPost.setCategory(category);
+
+        PostDto updatedPostResponse = new PostDto();
+        updatedPostResponse.setId(1L);
+        updatedPostResponse.setTitle("Updated Title");
+        updatedPostResponse.setDescription("Updated Description");
+        updatedPostResponse.setContent("Updated Content");
+        updatedPostResponse.setCategoryId(1L);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(postRepository.findById(1L))
+                .thenReturn(Optional.of(savedPost));
+
+        // ArgumentCaptor — set the trap before the act
+        // We'll use this to catch exactly what the service passes to save()
+        ArgumentCaptor<Post> postCaptor = ArgumentCaptor.forClass(Post.class);
+
+        when(postRepository.save(any(Post.class)))
+                .thenReturn(updatedPost);
+
+        when(modelMapper.map(any(Post.class), eq(PostDto.class)))
+                .thenReturn(updatedPostResponse);
+
+        // --- ACT ---
+        PostDto result = postService.updatePost(updatedPostDto, 1L);
+
+        // --- ASSERT ---
+
+        // First assert the returned DTO is correct
+        assertThat(result).isNotNull();
+        assertThat(result.getTitle()).isEqualTo("Updated Title");
+        assertThat(result.getDescription()).isEqualTo("Updated Description");
+        assertThat(result.getContent()).isEqualTo("Updated Content");
+        assertThat(result.getCategoryId()).isEqualTo(1L);
+
+        // Now capture and inspect what was actually passed to save()
+        // This is the ArgumentCaptor payoff — we see exactly what went in
+        verify(postRepository).save(postCaptor.capture());
+        Post capturedPost = postCaptor.getValue();
+
+        // Assert every mutated field on the captured object
+        // If the service forgot to call setDescription() for example, this fails
+        assertThat(capturedPost.getTitle()).isEqualTo("Updated Title");
+        assertThat(capturedPost.getDescription()).isEqualTo("Updated Description");
+        assertThat(capturedPost.getContent()).isEqualTo("Updated Content");
+        assertThat(capturedPost.getCategory()).isEqualTo(category);
+        assertThat(capturedPost.getCategory().getName()).isEqualTo("Technology");
+
+        verify(categoryRepository, times(1)).findById(1L);
+        verify(postRepository, times(1)).findById(1L);
+        verify(modelMapper, times(1)).map(any(Post.class), eq(PostDto.class));
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when category does not exist during update")
+    void updatePost_CategoryNotFound() {
+
+        // --- ARRANGE ---
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.empty());
+
+        // --- ACT & ASSERT ---
+        assertThatThrownBy(() -> postService.updatePost(postDto, 1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(categoryRepository, times(1)).findById(1L);
+        verify(postRepository, never()).findById(anyLong());
+        verify(postRepository, never()).save(any(Post.class));
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when post does not exist during update")
+    void updatePost_PostNotFound() {
+
+        // --- ARRANGE ---
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        when(postRepository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        // --- ACT & ASSERT ---
+        assertThatThrownBy(() -> postService.updatePost(postDto, 99L))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(categoryRepository, times(1)).findById(1L);
+        verify(postRepository, times(1)).findById(99L);
+        verify(postRepository, never()).save(any(Post.class));
     }
 }
