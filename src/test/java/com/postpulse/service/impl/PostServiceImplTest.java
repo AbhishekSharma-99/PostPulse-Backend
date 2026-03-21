@@ -507,4 +507,64 @@ class PostServiceImplTest {
         // confirms nothing was deleted when post wasn't found
         verify(postRepository, never()).delete(any(Post.class));
     }
+
+    // =====================================================================
+    // getPostsByCategory — Exact Matching
+    // Reason: findByCategoryId() takes a simple Long ID — exact matching
+    // confirms the service passed the correct categoryId without overhead.
+    // Empty list scenario verifies silent return behavior — this method
+    // intentionally does not throw when no posts are found for a category.
+    // =====================================================================
+
+    @Test
+    @DisplayName("Should return mapped list of posts when valid category ID is provided")
+    void getPostsByCategory_Success() {
+
+        // --- ARRANGE ---
+        when(postRepository.findByCategoryId(1L))
+                .thenReturn(List.of(savedPost));
+
+        when(modelMapper.map(any(Post.class), eq(PostDto.class)))
+                .thenReturn(postDto);
+
+        // --- ACT ---
+        List<PostDto> result = postService.getPostsByCategory(1L);
+
+        // --- ASSERT ---
+        assertThat(result).isNotNull();
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().getId()).isEqualTo(1L);
+        assertThat(result.getFirst().getTitle()).isEqualTo("Test Title");
+        assertThat(result.getFirst().getDescription()).isEqualTo("Test Description");
+        assertThat(result.getFirst().getContent()).isEqualTo("Test Content");
+        assertThat(result.getFirst().getCategoryId()).isEqualTo(1L);
+
+        verify(postRepository, times(1)).findByCategoryId(1L);
+        verify(modelMapper, times(1)).map(any(Post.class), eq(PostDto.class));
+    }
+
+    @Test
+    @DisplayName("Should return empty list when no posts exist for given category ID")
+    void getPostsByCategory_EmptyList() {
+
+        // --- ARRANGE ---
+
+        // WHY: Returning empty list simulates a valid categoryId that simply
+        // has no posts associated with it — OR an invalid categoryId entirely.
+        // This method does not distinguish between the two cases by design.
+        when(postRepository.findByCategoryId(99L))
+                .thenReturn(List.of());
+
+        // --- ACT ---
+        List<PostDto> result = postService.getPostsByCategory(99L);
+
+        // --- ASSERT ---
+        assertThat(result).isNotNull();
+        assertThat(result).isEmpty();
+
+        verify(postRepository, times(1)).findByCategoryId(99L);
+
+        // ModelMapper never called — empty list means stream produces nothing
+        verify(modelMapper, never()).map(any(Post.class), eq(PostDto.class));
+    }
 }
