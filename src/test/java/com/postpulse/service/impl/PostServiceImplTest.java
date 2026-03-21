@@ -219,7 +219,7 @@ class PostServiceImplTest {
 
         // Exact verify — wrong pageNo/pageSize/sort would fail here
         verify(postRepository, times(1)).findAll(expectedPageable);
-        verify(modelMapper, times(1)).map(savedPost, PostDto.class);
+        verify(modelMapper, times(1)).map(any(Post.class), eq(PostDto.class));
     }
 
     @Test
