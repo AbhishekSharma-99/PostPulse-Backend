@@ -1,3 +1,5 @@
+-- V1__Initial_Schema_and_Roles.sql
+
 -- 1. Create Independent Tables (Parents)
 CREATE TABLE `categories` (
                               `id` bigint NOT NULL AUTO_INCREMENT,
@@ -26,8 +28,8 @@ CREATE TABLE `users` (
 -- 2. Create Dependent Tables (Children)
 CREATE TABLE `posts` (
                          `id` bigint NOT NULL AUTO_INCREMENT,
-                         `content` varchar(255) NOT NULL,
-                         `description` varchar(255) NOT NULL,
+                         `content` TEXT NOT NULL,
+                         `description` varchar(500) NOT NULL,
                          `title` varchar(255) NOT NULL,
                          `category_id` bigint DEFAULT NULL,
                          PRIMARY KEY (`id`),
@@ -37,7 +39,7 @@ CREATE TABLE `posts` (
 
 CREATE TABLE `comment` (
                            `id` bigint NOT NULL AUTO_INCREMENT,
-                           `body` varchar(255) DEFAULT NULL,
+                           `body` TEXT DEFAULT NULL,
                            `email` varchar(255) DEFAULT NULL,
                            `name` varchar(255) DEFAULT NULL,
                            `post_id` bigint NOT NULL,
@@ -53,6 +55,6 @@ CREATE TABLE `users_roles` (
                                CONSTRAINT `FK_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 3. Seed Initial Data
-INSERT INTO `roles` (id, name) VALUES (1,'ROLE_ADMIN');
-INSERT INTO `roles` (id, name) VALUES (2,'ROLE_USER');
+-- 3. Seed Roles
+INSERT INTO `roles` (id, name) VALUES (1, 'ROLE_ADMIN');
+INSERT INTO `roles` (id, name) VALUES (2, 'ROLE_USER');
