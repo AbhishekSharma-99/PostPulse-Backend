@@ -2,7 +2,7 @@ package com.postpulse.service.impl;
 
 import com.postpulse.entity.Role;
 import com.postpulse.entity.User;
-import com.postpulse.exception.BlogAPIExecution;
+import com.postpulse.exception.BlogAPIException;
 import com.postpulse.payload.LoginDto;
 import com.postpulse.payload.RegisterDto;
 import com.postpulse.repository.RoleRepository;
@@ -16,25 +16,24 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet;
 import java.util.Set;
 
 @Service
 public class AuthServiceImpl implements AuthService {
 
-    private AuthenticationManager authenticationManager;
-    private UserRepository userRepository;
-    private RoleRepository roleRepository;
-    private PasswordEncoder passwordEncoder;
-    private JwtTokenProvider jwtTokenProvider;
+    private final AuthenticationManager authenticationManager;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
 
     public AuthServiceImpl(AuthenticationManager authenticationManager,
                            UserRepository userRepository,
                            RoleRepository roleRepository,
                            PasswordEncoder passwordEncoder,
                            JwtTokenProvider jwtTokenProvider) {
-
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
@@ -51,21 +50,19 @@ public class AuthServiceImpl implements AuthService {
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        String token = jwtTokenProvider.generateToken(authentication);
-
-        return token;
+        return jwtTokenProvider.generateToken(authentication);
     }
 
     @Override
+    @Transactional
     public String register(RegisterDto registerDto) {
-        // add check for username exists in database
+
         if (userRepository.existsByUsername(registerDto.getUsername())) {
-            throw new BlogAPIExecution(HttpStatus.BAD_REQUEST, "Username is already exists.");
+            throw new BlogAPIException(HttpStatus.BAD_REQUEST, "Username already exists.");
         }
 
-        // add check for email exists in database
         if (userRepository.existsByEmail(registerDto.getEmail())) {
-            throw new BlogAPIExecution(HttpStatus.BAD_REQUEST, "Email is already exists.");
+            throw new BlogAPIException(HttpStatus.BAD_REQUEST, "Email already exists.");
         }
 
         User user = new User();
@@ -74,14 +71,16 @@ public class AuthServiceImpl implements AuthService {
         user.setEmail(registerDto.getEmail());
         user.setPassword(passwordEncoder.encode(registerDto.getPassword()));
 
-        Set<Role> roles = new HashSet<>();
-        Role userRole = roleRepository.findByName("ROLE_USER").get();
-        roles.add(userRole);
+        Role userRole = roleRepository.findByName("ROLE_USER")
+                .orElseThrow(() -> new BlogAPIException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Default role not found. Ensure database migrations have run."
+                ));
 
-        user.setRoles(roles);
+        user.setRoles(Set.of(userRole));
 
         userRepository.save(user);
 
-        return "User Register Successfully.";
+        return "User registered successfully.";
     }
 }
