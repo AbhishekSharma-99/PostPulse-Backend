@@ -14,20 +14,18 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
+@Transactional(readOnly = true)
 public class PostServiceImpl implements PostService {
 
-    private PostRepository postRepository;
+    private final PostRepository postRepository;
+    private final ModelMapper mapper;
+    private final CategoryRepository categoryRepository;
 
-    private ModelMapper mapper;
-
-    private CategoryRepository categoryRepository;
-
-    //@Autowired not using because we do not have to mention it only one constructor method since spring-boot version 4.3.x
     public PostServiceImpl(PostRepository postRepository,
                            ModelMapper mapper,
                            CategoryRepository categoryRepository) {
@@ -37,38 +35,30 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    @Transactional
     public PostDto createPost(PostDto postDto) {
-
         Category category = categoryRepository.findById(postDto.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", postDto.getCategoryId()));
 
-        //convert through private method DTO to entity
         Post post = mapToEntity(postDto);
-
         post.setCategory(category);
 
-        Post newPost = postRepository.save(post);
-
-        //convert through private method entity to DTO
-        PostDto postResponse = mapToDTO(newPost);
-
-        return postResponse;
+        return mapToDTO(postRepository.save(post));
     }
 
     @Override
     public PostResponse getAllPosts(int pageno, int pagesize, String sortBy, String sortDir) {
+        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
 
-//        Sort sort = Sort.by(Sort.Direction.fromString(sortDir), sortBy);
-        Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name()) ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-        //create pagable instance
         Pageable pageable = PageRequest.of(pageno, pagesize, sort);
-
         Page<Post> posts = postRepository.findAll(pageable);
 
-        //get content of page object into list( as post )
-        List<Post> listOfPost = posts.getContent();
-
-        List<PostDto> content = listOfPost.stream().map(post -> mapToDTO(post)).collect(Collectors.toList());
+        List<PostDto> content = posts.getContent()
+                .stream()
+                .map(this::mapToDTO)
+                .toList();
 
         PostResponse postResponse = new PostResponse();
         postResponse.setContent(content);
@@ -83,68 +73,49 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public PostDto getPostById(long id) {
-        Post post = postRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Post", "id", id));
+        Post post = postRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Post", "id", id));
         return mapToDTO(post);
     }
 
     @Override
+    @Transactional
     public PostDto updatePost(PostDto postDto, long id) {
-
         Category category = categoryRepository.findById(postDto.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", postDto.getCategoryId()));
 
-        //get post by id from database
-        Post post = postRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Post", "id", id));
+        Post post = postRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Post", "id", id));
+
         post.setTitle(postDto.getTitle());
         post.setDescription(postDto.getDescription());
         post.setContent(postDto.getContent());
         post.setCategory(category);
 
-        Post updatedPost = postRepository.save(post);
-
-        return mapToDTO(updatedPost);
+        return mapToDTO(postRepository.save(post));
     }
 
     @Override
+    @Transactional
     public void deletePost(long id) {
-        //get post by id from database
-        Post post = postRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Post", "id", id));
+        Post post = postRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Post", "id", id));
         postRepository.delete(post);
     }
 
     @Override
     public List<PostDto> getPostsByCategory(long categoryId) {
-
-        List<Post> posts = postRepository.findByCategoryId(categoryId);
-        return posts
+        return postRepository.findByCategoryId(categoryId)
                 .stream()
-                .map(post -> mapToDTO(post))
-                .collect(Collectors.toList());
+                .map(this::mapToDTO)
+                .toList();
     }
 
-    //convert DTO to entity
     private Post mapToEntity(PostDto postDto) {
-        Post post = mapper.map(postDto, Post.class);
-
-//        Post post = new Post();
-//        post.setTitle(postDto.getTitle());
-//        post.setDescription(postDto.getDescription());
-//        post.setContent(postDto.getContent());
-        return post;
+        return mapper.map(postDto, Post.class);
     }
 
-    //convert entity to DTO
-    private PostDto mapToDTO(Post newPost) {
-        PostDto postDto = mapper.map(newPost, PostDto.class);
-
-
-//        PostDto postResponse = new PostDto();
-//        postResponse.setId(newPost.getId());
-//        postResponse.setTitle(newPost.getTitle());
-//        postResponse.setDescription(newPost.getDescription());
-//        postResponse.setContent(newPost.getContent());
-
-        return postDto;
+    private PostDto mapToDTO(Post post) {
+        return mapper.map(post, PostDto.class);
     }
-
 }
