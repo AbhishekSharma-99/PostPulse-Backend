@@ -13,7 +13,7 @@ import java.util.List;
 @Schema(description = "PostResponse Model Information")
 public class PostResponse {
     @Schema(description = "List of Posts")
-    private List<PostDto> content;
+    private List<PostResponseDto> content;
     @Schema(description = "Page number")
     private int pageNo;
     @Schema(description = "Page size")
