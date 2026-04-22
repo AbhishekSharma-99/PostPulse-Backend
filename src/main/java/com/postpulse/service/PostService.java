@@ -2,21 +2,22 @@ package com.postpulse.service;
 
 import com.postpulse.payload.PostDto;
 import com.postpulse.payload.PostResponse;
+import com.postpulse.payload.PostResponseDto;
 
 import java.util.List;
 
 public interface PostService {
-    PostDto createPost(PostDto postDto);
+    PostResponseDto createPost(PostDto postDto);
 
-    PostResponse getAllPosts(int pageno, int pagesize, String sortBy, String dir);
+    PostResponse getAllPosts(int pageNo, int pageSize, String sortBy, String dir);
 
-    PostDto getPostById(long id);
+    PostResponseDto getPostById(long id);
 
-    PostDto updatePost(PostDto postDto, long id);
+    PostResponseDto updatePost(PostDto postDto, long id);
 
     void deletePost(long id);
 
-    List<PostDto> getPostsByCategory(long categoryId);
+    List<PostResponseDto> getPostsByCategory(long categoryId);
 
 
 }

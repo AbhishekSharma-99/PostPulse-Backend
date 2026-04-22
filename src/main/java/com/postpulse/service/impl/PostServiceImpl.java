@@ -5,6 +5,7 @@ import com.postpulse.entity.Post;
 import com.postpulse.exception.ResourceNotFoundException;
 import com.postpulse.payload.PostDto;
 import com.postpulse.payload.PostResponse;
+import com.postpulse.payload.PostResponseDto;
 import com.postpulse.repository.CategoryRepository;
 import com.postpulse.repository.PostRepository;
 import com.postpulse.service.PostService;
@@ -36,28 +37,28 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
-    public PostDto createPost(PostDto postDto) {
+    public PostResponseDto createPost(PostDto postDto) {
         Category category = categoryRepository.findById(postDto.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", postDto.getCategoryId()));
 
         Post post = mapToEntity(postDto);
         post.setCategory(category);
 
-        return mapToDTO(postRepository.save(post));
+        return mapToDto(postRepository.save(post));
     }
 
     @Override
-    public PostResponse getAllPosts(int pageno, int pagesize, String sortBy, String sortDir) {
+    public PostResponse getAllPosts(int pageNo, int pageSize, String sortBy, String sortDir) {
         Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
 
-        Pageable pageable = PageRequest.of(pageno, pagesize, sort);
+        Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
         Page<Post> posts = postRepository.findAll(pageable);
 
-        List<PostDto> content = posts.getContent()
+        List<PostResponseDto> content = posts.getContent()
                 .stream()
-                .map(this::mapToDTO)
+                .map(this::mapToDto)
                 .toList();
 
         PostResponse postResponse = new PostResponse();
@@ -72,15 +73,15 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public PostDto getPostById(long id) {
+    public PostResponseDto getPostById(long id) {
         Post post = postRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Post", "id", id));
-        return mapToDTO(post);
+        return mapToDto(post);
     }
 
     @Override
     @Transactional
-    public PostDto updatePost(PostDto postDto, long id) {
+    public PostResponseDto updatePost(PostDto postDto, long id) {
         Category category = categoryRepository.findById(postDto.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", postDto.getCategoryId()));
 
@@ -92,7 +93,7 @@ public class PostServiceImpl implements PostService {
         post.setContent(postDto.getContent());
         post.setCategory(category);
 
-        return mapToDTO(postRepository.save(post));
+        return mapToDto(postRepository.save(post));
     }
 
     @Override
@@ -104,10 +105,10 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public List<PostDto> getPostsByCategory(long categoryId) {
+    public List<PostResponseDto> getPostsByCategory(long categoryId) {
         return postRepository.findByCategoryId(categoryId)
                 .stream()
-                .map(this::mapToDTO)
+                .map(this::mapToDto)
                 .toList();
     }
 
@@ -115,7 +116,7 @@ public class PostServiceImpl implements PostService {
         return mapper.map(postDto, Post.class);
     }
 
-    private PostDto mapToDTO(Post post) {
-        return mapper.map(post, PostDto.class);
+    private PostResponseDto mapToDto(Post post) {
+        return mapper.map(post, PostResponseDto.class);
     }
 }
