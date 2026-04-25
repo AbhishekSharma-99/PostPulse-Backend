@@ -13,10 +13,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 @Schema(description = "CategoryDto Model Information")
-public class CategoryDto {
-
-    @Schema(description = "Category ID")
-    private Long id;
+public class CategoryRequest {
 
     @Schema(description = "Category Name")
     @NotBlank(message = "Category name is required")

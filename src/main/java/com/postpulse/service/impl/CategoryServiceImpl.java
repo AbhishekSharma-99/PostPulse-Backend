@@ -2,7 +2,8 @@ package com.postpulse.service.impl;
 
 import com.postpulse.entity.Category;
 import com.postpulse.exception.ResourceNotFoundException;
-import com.postpulse.payload.CategoryDto;
+import com.postpulse.payload.CategoryRequest;
+import com.postpulse.payload.CategoryResponse;
 import com.postpulse.repository.CategoryRepository;
 import com.postpulse.service.CategoryService;
 import org.modelmapper.ModelMapper;
@@ -26,38 +27,38 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
-    public CategoryDto addCategory(CategoryDto categoryDto) {
-        Category category = modelMapper.map(categoryDto, Category.class);
+    public CategoryResponse addCategory(CategoryRequest categoryRequest) {
+        Category category = modelMapper.map(categoryRequest, Category.class);
         Category savedCategory = categoryRepository.save(category);
-        return modelMapper.map(savedCategory, CategoryDto.class);
+        return modelMapper.map(savedCategory, CategoryResponse.class);
     }
 
     @Override
-    public CategoryDto getCategoryById(long categoryId) {
+    public CategoryResponse getCategoryById(long categoryId) {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", categoryId));
-        return modelMapper.map(category, CategoryDto.class);
+        return modelMapper.map(category, CategoryResponse.class);
     }
 
     @Override
-    public List<CategoryDto> getAllCategories() {
+    public List<CategoryResponse> getAllCategories() {
         return categoryRepository.findAll()
                 .stream()
-                .map(category -> modelMapper.map(category, CategoryDto.class))
+                .map(category -> modelMapper.map(category, CategoryResponse.class))
                 .toList();
     }
 
     @Override
     @Transactional
-    public CategoryDto updateCategory(long categoryId, CategoryDto categoryDto) {
+    public CategoryResponse updateCategory(long categoryId, CategoryRequest categoryRequest) {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", categoryId));
 
-        category.setName(categoryDto.getName());
-        category.setDescription(categoryDto.getDescription());
+        category.setName(categoryRequest.getName());
+        category.setDescription(categoryRequest.getDescription());
         category.setId(categoryId);
 
-        return modelMapper.map(categoryRepository.save(category), CategoryDto.class);
+        return modelMapper.map(categoryRepository.save(category), CategoryResponse.class);
     }
 
     @Override

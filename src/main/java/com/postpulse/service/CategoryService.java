@@ -1,17 +1,18 @@
 package com.postpulse.service;
 
-import com.postpulse.payload.CategoryDto;
+import com.postpulse.payload.CategoryRequest;
+import com.postpulse.payload.CategoryResponse;
 
 import java.util.List;
 
 public interface CategoryService {
-    CategoryDto addCategory(CategoryDto categoryDto);
+    CategoryResponse addCategory(CategoryRequest categoryRequest);
 
-    CategoryDto getCategoryById(long categoryId);
+    CategoryResponse getCategoryById(long categoryId);
 
-    List<CategoryDto> getAllCategories();
+    List<CategoryResponse> getAllCategories();
 
-    CategoryDto updateCategory(long categoryId, CategoryDto categoryDto);
+    CategoryResponse updateCategory(long categoryId, CategoryRequest categoryRequest);
 
     void deleteCategory(long categoryId);
 }

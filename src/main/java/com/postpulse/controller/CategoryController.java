@@ -1,6 +1,7 @@
 package com.postpulse.controller;
 
-import com.postpulse.payload.CategoryDto;
+import com.postpulse.payload.CategoryRequest;
+import com.postpulse.payload.CategoryResponse;
 import com.postpulse.service.CategoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -30,21 +31,21 @@ public class CategoryController {
     @SecurityRequirement(name = "bearerAuth")
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CategoryDto> addCategory(@Valid @RequestBody CategoryDto categoryDto) {
-        return new ResponseEntity<>(categoryService.addCategory(categoryDto), HttpStatus.CREATED);
+    public ResponseEntity<CategoryResponse> addCategory(@Valid @RequestBody CategoryRequest categoryRequest) {
+        return new ResponseEntity<>(categoryService.addCategory(categoryRequest), HttpStatus.CREATED);
     }
 
     @Operation(summary = "Get category by ID", description = "Retrieve a category by its ID.")
     @ApiResponse(responseCode = "200", description = "Category retrieved successfully")
     @GetMapping("/{categoryId}")
-    public ResponseEntity<CategoryDto> getCategoryById(@PathVariable long categoryId) {
+    public ResponseEntity<CategoryResponse> getCategoryById(@PathVariable long categoryId) {
         return ResponseEntity.ok(categoryService.getCategoryById(categoryId));
     }
 
     @Operation(summary = "Get all categories", description = "Retrieve all categories.")
     @ApiResponse(responseCode = "200", description = "Categories retrieved successfully")
     @GetMapping
-    public ResponseEntity<List<CategoryDto>> getAllCategories() {
+    public ResponseEntity<List<CategoryResponse>> getAllCategories() {
         return ResponseEntity.ok(categoryService.getAllCategories());
     }
 
@@ -53,10 +54,10 @@ public class CategoryController {
     @SecurityRequirement(name = "bearerAuth")
     @PutMapping("/{categoryId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CategoryDto> updateCategory(
+    public ResponseEntity<CategoryResponse> updateCategory(
             @PathVariable long categoryId,
-            @Valid @RequestBody CategoryDto categoryDto) {
-        return ResponseEntity.ok(categoryService.updateCategory(categoryId, categoryDto));
+            @Valid @RequestBody CategoryRequest categoryRequest) {
+        return ResponseEntity.ok(categoryService.updateCategory(categoryId, categoryRequest));
     }
 
     @Operation(summary = "Delete a category", description = "Delete a category by ID. ADMIN only.")
