@@ -4,7 +4,8 @@ import com.postpulse.entity.Comment;
 import com.postpulse.entity.Post;
 import com.postpulse.exception.BlogAPIException;
 import com.postpulse.exception.ResourceNotFoundException;
-import com.postpulse.payload.CommentDto;
+import com.postpulse.payload.CommentRequest;
+import com.postpulse.payload.CommentResponse;
 import com.postpulse.repository.CommentRepository;
 import com.postpulse.repository.PostRepository;
 import com.postpulse.service.CommentService;
@@ -33,15 +34,15 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional
-    public CommentDto createComment(long postId, CommentDto commentDto) {
+    public CommentResponse createComment(long postId, CommentRequest commentRequest) {
         Post post = getPost(postId);
-        Comment comment = mapToEntity(commentDto);
+        Comment comment = mapToEntity(commentRequest);
         comment.setPost(post);
         return mapToDto(commentRepository.save(comment));
     }
 
     @Override
-    public List<CommentDto> getByPostId(long postId) {
+    public List<CommentResponse> getByPostId(long postId) {
         return commentRepository.findByPostId(postId)
                 .stream()
                 .map(this::mapToDto)
@@ -49,7 +50,7 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public CommentDto getCommentById(long postId, long commentId) {
+    public CommentResponse getCommentById(long postId, long commentId) {
         Post post = getPost(postId);
         Comment comment = getComment(commentId);
         validateCommentBelongsToPost(comment, post);
@@ -58,14 +59,14 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional
-    public CommentDto updateCommentById(long postId, long commentId, CommentDto commentDto) {
+    public CommentResponse updateCommentById(long postId, long commentId, CommentRequest commentRequest) {
         Post post = getPost(postId);
         Comment comment = getComment(commentId);
         validateCommentBelongsToPost(comment, post);
 
-        comment.setName(commentDto.getName());
-        comment.setEmail(commentDto.getEmail());
-        comment.setBody(commentDto.getBody());
+        comment.setName(commentRequest.getName());
+        comment.setEmail(commentRequest.getEmail());
+        comment.setBody(commentRequest.getBody());
 
         return mapToDto(commentRepository.save(comment));
     }
@@ -86,12 +87,12 @@ public class CommentServiceImpl implements CommentService {
         }
     }
 
-    private CommentDto mapToDto(Comment comment) {
-        return mapper.map(comment, CommentDto.class);
+    private CommentResponse mapToDto(Comment comment) {
+        return mapper.map(comment, CommentResponse.class);
     }
 
-    private Comment mapToEntity(CommentDto commentDto) {
-        return mapper.map(commentDto, Comment.class);
+    private Comment mapToEntity(CommentRequest commentRequest) {
+        return mapper.map(commentRequest, Comment.class);
     }
 
     private Post getPost(long postId) {

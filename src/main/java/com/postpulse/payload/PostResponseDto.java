@@ -22,7 +22,7 @@ public class PostResponseDto {
     private String content;
 
     @Schema(description = "Blog post Comments")
-    private Set<CommentDto> comments;
+    private Set<CommentResponse> comments;
 
     @Schema(description = "Blog post Category ID")
     private long categoryId;

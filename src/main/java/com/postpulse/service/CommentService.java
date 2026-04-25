@@ -1,17 +1,18 @@
 package com.postpulse.service;
 
-import com.postpulse.payload.CommentDto;
+import com.postpulse.payload.CommentRequest;
+import com.postpulse.payload.CommentResponse;
 
 import java.util.List;
 
 public interface CommentService {
-    CommentDto createComment(long postId, CommentDto commentDto);
+    CommentResponse createComment(long postId, CommentRequest commentRequest);
 
-    List<CommentDto> getByPostId(long postId);
+    List<CommentResponse> getByPostId(long postId);
 
-    CommentDto getCommentById(long postId, long commentId);
+    CommentResponse getCommentById(long postId, long commentId);
 
-    CommentDto updateCommentById(long postId, long commentId, CommentDto commentDto);
+    CommentResponse updateCommentById(long postId, long commentId, CommentRequest commentRequest);
 
     void deleteCommentById(long postId, long commentId);
 
