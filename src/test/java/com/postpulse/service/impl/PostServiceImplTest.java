@@ -5,6 +5,7 @@ import com.postpulse.entity.Post;
 import com.postpulse.exception.ResourceNotFoundException;
 import com.postpulse.payload.PostDto;
 import com.postpulse.payload.PostResponse;
+import com.postpulse.payload.PostResponseDto;
 import com.postpulse.repository.CategoryRepository;
 import com.postpulse.repository.PostRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,8 +15,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
+import org.modelmapper.PropertyMap;
 import org.springframework.data.domain.*;
 
 import java.util.List;
@@ -26,54 +29,59 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class) // Tells JUnit 5 to enable Mockito annotations — without this, @Mock and @InjectMocks won't work
+@ExtendWith(MockitoExtension.class)
 class PostServiceImplTest {
 
-    // @Mock creates a fake version of these dependencies
-    // so we control what they return without hitting a real database
     @Mock
     private PostRepository postRepository;
 
     @Mock
     private CategoryRepository categoryRepository;
 
-    @Mock
-    private ModelMapper modelMapper;
+    // @Spy wraps a real ModelMapper instance — actual mapping logic runs,
+    // including the custom PropertyMap that populates categoryId from
+    // post.getCategory().getId(). A @Mock here would prove map() was called
+    // but never that the field mapping itself is correct.
+    @Spy
+    private ModelMapper modelMapper = buildModelMapper();
 
-    // @InjectMocks creates a real instance of PostServiceImpl
-    // and automatically injects the @Mock objects above into it
     @InjectMocks
     private PostServiceImpl postService;
 
-    // These are reusable test objects shared across test cases
     private PostDto postDto;
-    private Post post;
     private Post savedPost;
     private Category category;
 
+    // Mirrors the production @Bean exactly — same PropertyMap, same registration.
+    // Any divergence here would mean tests pass while production silently
+    // maps categoryId as 0.
+    private static ModelMapper buildModelMapper() {
+        ModelMapper modelMapper = new ModelMapper();
+        modelMapper.addMappings(new PropertyMap<Post, PostResponseDto>() {
+            @Override
+            protected void configure() {
+                map().setCategoryId(source.getCategory().getId());
+            }
+        });
+        return modelMapper;
+    }
+
     @BeforeEach
     void setUp() {
-        // @BeforeEach runs before every single test method
-        // We build fresh objects here to avoid one test affecting another
-
         category = new Category();
         category.setId(1L);
         category.setName("Technology");
 
+        // postDto is the incoming request object — no ID (client doesn't set it)
         postDto = new PostDto();
-        postDto.setId(1L);
         postDto.setTitle("Test Title");
         postDto.setDescription("Test Description");
         postDto.setContent("Test Content");
         postDto.setCategoryId(1L);
 
-        // 'post' is what ModelMapper produces from postDto (before saving)
-        post = new Post();
-        post.setTitle("Test Title");
-        post.setDescription("Test Description");
-        post.setContent("Test Content");
-
-        // 'savedPost' is what the repository returns after saving (now has an ID)
+        // 'savedPost' is what the repository returns after save() —
+        // category must be set here so the real ModelMapper can traverse
+        // getCategory().getId() without a NullPointerException
         savedPost = new Post();
         savedPost.setId(1L);
         savedPost.setTitle("Test Title");
@@ -83,53 +91,33 @@ class PostServiceImplTest {
     }
 
     // =====================================================================
-    // TEST CASES FOR createPost() METHOD
+    // createPost — ArgumentCaptor on save()
+    // postRepository.save() uses ArgumentCaptor because the post object
+    // is mutated (setCategory) inside the service before persisting —
+    // we capture the mutated state and assert the category was correctly
+    // assigned, which any(Post.class) would silently let through.
+    // With real ModelMapper, output fields are asserted directly —
+    // no map() stubs needed, proving transformation works end-to-end.
     // =====================================================================
 
     @Test
     @DisplayName("Should successfully create a post when category exists")
     void createPost_Success() {
 
-        // --- ARRANGE (set up all the mocks) ---
-
-        // WHY: categoryRepository is a mock (fake), it doesn't talk to a real DB.
-        // So we tell it: "when someone calls findById(1L), pretend you found this category"
-        // Without this, findById() would return empty Optional and throw ResourceNotFoundException
+        // --- ARRANGE ---
         when(categoryRepository.findById(1L))
                 .thenReturn(Optional.of(category));
 
-        // WHY: ModelMapper is mocked so it won't do real object mapping.
-        // We tell it: "when map() is called with postDto, return our pre-built post object"
-        // This isolates our test — we're testing service logic, not ModelMapper's behavior
-        when(modelMapper.map(postDto, Post.class))
-                .thenReturn(post);
-
-        // WHY: postRepository is mocked so no real DB save happens.
-        // We tell it: "when save() is called with any Post object, return our savedPost"
-        // 'any(Post.class)' is used because the post object is modified (setCategory is called)
-        // before saving, so we can't match on the exact object reference
         when(postRepository.save(any(Post.class)))
                 .thenReturn(savedPost);
 
-        // WHY: ModelMapper is called a second time to convert savedPost → PostDto.
-        // We tell it: "when map() is called with savedPost, return our postDto"
-        // We use eq() here to match the exact savedPost object returned by the repository
-        PostDto expectedResponse = new PostDto();
-        expectedResponse.setId(1L);
-        expectedResponse.setTitle("Test Title");
-        expectedResponse.setDescription("Test Description");
-        expectedResponse.setContent("Test Content");
-        expectedResponse.setCategoryId(1L);
+        // --- ACT ---
+        PostResponseDto result = postService.createPost(postDto);
 
-        when(modelMapper.map(savedPost, PostDto.class))
-                .thenReturn(expectedResponse);
+        // --- ASSERT ---
 
-        // --- ACT (call the actual method we're testing) ---
-        PostDto result = postService.createPost(postDto);
-
-        // --- ASSERT (verify the result is what we expect) ---
-
-        // AssertJ fluent assertions — reads like English, much cleaner than JUnit assertEquals
+        // Real ModelMapper ran — these values came from actual field mapping,
+        // not a stub. If the PropertyMap breaks, this assertion catches it.
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getTitle()).isEqualTo("Test Title");
@@ -137,12 +125,11 @@ class PostServiceImplTest {
         assertThat(result.getContent()).isEqualTo("Test Content");
         assertThat(result.getCategoryId()).isEqualTo(1L);
 
-        // Verify that the mocks were actually called the expected number of times
-        // This ensures our service isn't skipping any important steps
-        verify(categoryRepository, times(1)).findById(1L);
-        verify(postRepository, times(1)).save(any(Post.class));
-        verify(modelMapper, times(1)).map(postDto, Post.class);
-        verify(modelMapper, times(1)).map(savedPost, PostDto.class);
+        ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
+        verify(postRepository).save(captor.capture());
+        assertThat(captor.getValue().getCategory()).isEqualTo(category);
+
+        verify(categoryRepository).findById(1L);
     }
 
     @Test
@@ -150,34 +137,24 @@ class PostServiceImplTest {
     void createPost_CategoryNotFound() {
 
         // --- ARRANGE ---
-
-        // WHY: We simulate a scenario where the category ID doesn't exist in the DB.
-        // Returning Optional.empty() forces the orElseThrow() in the service to trigger,
-        // which should throw ResourceNotFoundException
         when(categoryRepository.findById(1L))
                 .thenReturn(Optional.empty());
 
         // --- ACT & ASSERT ---
-
-        // assertThatThrownBy is AssertJ's way of testing that an exception IS thrown.
-        // It's cleaner than JUnit's @Test(expected=...) or try/catch blocks
         assertThatThrownBy(() -> postService.createPost(postDto))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        // Verify category lookup was attempted
-        verify(categoryRepository, times(1)).findById(1L);
-
-        // Verify that since category wasn't found, we never reached the save() call
-        // This confirms our service exits early as expected
+        verify(categoryRepository).findById(1L);
         verify(postRepository, never()).save(any(Post.class));
     }
 
     // =====================================================================
-    // getAllPosts — Exact Matching
-    // Reason: The service constructs a Pageable from 4 external parameters.
-    // Exact matching ensures all 4 (pageNo, pageSize, sortBy, sortDir)
-    // are correctly wired into the Pageable — any(Pageable.class) would
-    // silently pass even if the service hardcoded wrong values.
+    // getAllPosts — Exact Pageable Matching
+    // The service constructs a Pageable from 4 external parameters
+    // (pageNo, pageSize, sortBy, sortDir). Exact matching ensures all 4 are
+    // correctly wired into PageRequest — using any(Pageable.class) would
+    // silently pass even if the service hardcoded wrong values or ignored
+    // the sort direction entirely.
     // =====================================================================
 
     @Test
@@ -185,42 +162,27 @@ class PostServiceImplTest {
     void getAllPosts_Success_AscendingSort() {
 
         // --- ARRANGE ---
-        int pageNo = 0;
-        int pageSize = 10;
-        String sortBy = "title";
-        String sortDir = "ASC";
-
-        // Building the exact Pageable we expect the service to construct
-        Pageable expectedPageable = PageRequest.of(
-                pageNo, pageSize, Sort.by(sortBy).ascending()
-        );
-
-        Page<Post> postPage = new PageImpl<>(
-                List.of(savedPost), expectedPageable, 1
-        );
+        Pageable expectedPageable = PageRequest.of(0, 10, Sort.by("title").ascending());
+        Page<Post> postPage = new PageImpl<>(List.of(savedPost), expectedPageable, 1);
 
         when(postRepository.findAll(expectedPageable))
                 .thenReturn(postPage);
 
-        when(modelMapper.map(savedPost, PostDto.class))
-                .thenReturn(postDto);
-
         // --- ACT ---
-        PostResponse result = postService.getAllPosts(pageNo, pageSize, sortBy, sortDir);
+        PostResponse result = postService.getAllPosts(0, 10, "title", "ASC");
 
         // --- ASSERT ---
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().getFirst().getTitle()).isEqualTo("Test Title");
+        assertThat(result.getContent().getFirst().getCategoryId()).isEqualTo(1L);
         assertThat(result.getPageNo()).isEqualTo(0);
         assertThat(result.getPageSize()).isEqualTo(10);
         assertThat(result.getTotalElement()).isEqualTo(1L);
         assertThat(result.getTotalPages()).isEqualTo(1);
         assertThat(result.isLast()).isTrue();
 
-        // Exact verify — wrong pageNo/pageSize/sort would fail here
-        verify(postRepository, times(1)).findAll(expectedPageable);
-        verify(modelMapper, times(1)).map(any(Post.class), eq(PostDto.class));
+        verify(postRepository).findAll(expectedPageable);
     }
 
     @Test
@@ -228,35 +190,24 @@ class PostServiceImplTest {
     void getAllPosts_Success_DescendingSort() {
 
         // --- ARRANGE ---
-        int pageNo = 0;
-        int pageSize = 5;
-        String sortBy = "title";
-        String sortDir = "DESC";
 
-        Pageable expectedPageable = PageRequest.of(
-                pageNo, pageSize, Sort.by(sortBy).descending()
-        );
-
-        Page<Post> postPage = new PageImpl<>(
-                List.of(savedPost), expectedPageable, 1
-        );
+        // Descending sort — verifies the ternary branch in the service
+        // that switches between ascending() and descending() based on sortDir
+        Pageable expectedPageable = PageRequest.of(0, 5, Sort.by("title").descending());
+        Page<Post> postPage = new PageImpl<>(List.of(savedPost), expectedPageable, 1);
 
         when(postRepository.findAll(expectedPageable))
                 .thenReturn(postPage);
 
-        when(modelMapper.map(savedPost, PostDto.class))
-                .thenReturn(postDto);
-
         // --- ACT ---
-        PostResponse result = postService.getAllPosts(pageNo, pageSize, sortBy, sortDir);
+        PostResponse result = postService.getAllPosts(0, 5, "title", "DESC");
 
         // --- ASSERT ---
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().getFirst().getTitle()).isEqualTo("Test Title");
 
-        verify(postRepository, times(1)).findAll(expectedPageable);
-        verify(modelMapper, times(1)).map(any(Post.class), eq(PostDto.class));
+        verify(postRepository).findAll(expectedPageable);
     }
 
     @Test
@@ -264,22 +215,18 @@ class PostServiceImplTest {
     void getAllPosts_EmptyPage() {
 
         // --- ARRANGE ---
-        int pageNo = 0;
-        int pageSize = 10;
-        String sortBy = "title";
-        String sortDir = "ASC";
+        Pageable expectedPageable = PageRequest.of(0, 10, Sort.by("title").ascending());
 
-        Pageable expectedPageable = PageRequest.of(
-                pageNo, pageSize, Sort.by(sortBy).ascending()
-        );
-
+        // Empty page simulates a database with no posts —
+        // verifies that the service handles empty results and correctly identifies
+        // the page as the last one to prevent pagination logic errors.
         Page<Post> emptyPage = new PageImpl<>(List.of(), expectedPageable, 0);
 
         when(postRepository.findAll(expectedPageable))
                 .thenReturn(emptyPage);
 
         // --- ACT ---
-        PostResponse result = postService.getAllPosts(pageNo, pageSize, sortBy, sortDir);
+        PostResponse result = postService.getAllPosts(0, 10, "title", "ASC");
 
         // --- ASSERT ---
         assertThat(result).isNotNull();
@@ -287,18 +234,40 @@ class PostServiceImplTest {
         assertThat(result.getTotalElement()).isEqualTo(0);
         assertThat(result.isLast()).isTrue();
 
-        verify(postRepository, times(1)).findAll(expectedPageable);
+        verify(postRepository).findAll(expectedPageable);
+    }
 
-        // ModelMapper completely untouched — no posts means no mapping
-        verify(modelMapper, never()).map(any(Post.class), eq(PostDto.class));
+    @Test
+    @DisplayName("Should default to descending sort when sort direction is invalid")
+    void getAllPosts_InvalidSortDirection_DefaultsToDescending() {
+
+        // --- ARRANGE ---
+
+        // The service ternary checks equalsIgnoreCase("ASC") — anything that
+        // isn't "ASC" silently falls through to descending(). This test
+        // documents that contract explicitly so a future refactor can't
+        // accidentally change the default without breaking a test.
+        Pageable expectedPageable = PageRequest.of(0, 10, Sort.by("title").descending());
+        Page<Post> postPage = new PageImpl<>(List.of(savedPost), expectedPageable, 1);
+
+        when(postRepository.findAll(expectedPageable))
+                .thenReturn(postPage);
+
+        // --- ACT ---
+        PostResponse result = postService.getAllPosts(0, 10, "title", "INVALID");
+
+        // --- ASSERT ---
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+
+        verify(postRepository).findAll(expectedPageable);
     }
 
     // =====================================================================
     // getPostById — Exact Matching
-    // Reason: findById() takes a simple Long ID — exact matching confirms
-    // the service passed the correct ID without any ArgumentCaptor overhead.
-    // ModelMapper uses any(Post.class) due to Mockito's technical limitation
-    // with generic methods — not a strategy choice but a necessity.
+    // findById() takes a simple Long ID — exact matching confirms the
+    // service passed the correct ID. The not-found case verifies
+    // orElseThrow() fires before any mapping is attempted.
     // =====================================================================
 
     @Test
@@ -309,11 +278,8 @@ class PostServiceImplTest {
         when(postRepository.findById(1L))
                 .thenReturn(Optional.of(savedPost));
 
-        when(modelMapper.map(any(Post.class), eq(PostDto.class)))
-                .thenReturn(postDto);
-
         // --- ACT ---
-        PostDto result = postService.getPostById(1L);
+        PostResponseDto result = postService.getPostById(1L);
 
         // --- ASSERT ---
         assertThat(result).isNotNull();
@@ -321,10 +287,9 @@ class PostServiceImplTest {
         assertThat(result.getTitle()).isEqualTo("Test Title");
         assertThat(result.getDescription()).isEqualTo("Test Description");
         assertThat(result.getContent()).isEqualTo("Test Content");
+        assertThat(result.getCategoryId()).isEqualTo(1L);
 
-        // Exact verify — confirms service used the exact ID we passed
-        verify(postRepository, times(1)).findById(1L);
-        verify(modelMapper, times(1)).map(savedPost, PostDto.class);
+        verify(postRepository).findById(1L);
     }
 
     @Test
@@ -339,18 +304,20 @@ class PostServiceImplTest {
         assertThatThrownBy(() -> postService.getPostById(99L))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        verify(postRepository, times(1)).findById(99L);
-        verify(modelMapper, never()).map(any(Post.class), eq(PostDto.class));
+        verify(postRepository).findById(99L);
     }
 
     // =====================================================================
     // updatePost — ArgumentCaptor
-    // Reason: The service fetches an existing post then mutates MULTIPLE
-    // fields (title, description, content, category) before saving.
-    // ArgumentCaptor lets us intercept the exact mutated object and
-    // assert every field was correctly updated — something any(Post.class)
-    // completely misses and exact matching can't do since the object
-    // is built and mutated entirely inside the service.
+    // The service fetches an existing post then mutates MULTIPLE fields
+    // (title, description, content, category) before calling save().
+    // ArgumentCaptor intercepts the exact mutated Post object and lets us
+    // assert every field was correctly set — any(Post.class) would pass
+    // even if the service forgot to call setDescription(), and exact
+    // matching is impossible since the object is built and mutated entirely
+    // inside the service method itself.
+    // =====================================================================
+
     @Test
     @DisplayName("Should successfully update post when post and category both exist")
     void updatePost_Success() {
@@ -369,57 +336,39 @@ class PostServiceImplTest {
         updatedPost.setContent("Updated Content");
         updatedPost.setCategory(category);
 
-        PostDto updatedPostResponse = new PostDto();
-        updatedPostResponse.setId(1L);
-        updatedPostResponse.setTitle("Updated Title");
-        updatedPostResponse.setDescription("Updated Description");
-        updatedPostResponse.setContent("Updated Content");
-        updatedPostResponse.setCategoryId(1L);
-
         when(categoryRepository.findById(1L))
                 .thenReturn(Optional.of(category));
 
         when(postRepository.findById(1L))
                 .thenReturn(Optional.of(savedPost));
 
-        // ArgumentCaptor — set the trap before the act
-        // We'll use this to catch exactly what the service passes to save()
-        ArgumentCaptor<Post> postCaptor = ArgumentCaptor.forClass(Post.class);
-
         when(postRepository.save(any(Post.class)))
                 .thenReturn(updatedPost);
 
-        when(modelMapper.map(any(Post.class), eq(PostDto.class)))
-                .thenReturn(updatedPostResponse);
-
         // --- ACT ---
-        PostDto result = postService.updatePost(updatedPostDto, 1L);
+        PostResponseDto result = postService.updatePost(updatedPostDto, 1L);
 
         // --- ASSERT ---
-
-        // First assert the returned DTO is correct
         assertThat(result).isNotNull();
         assertThat(result.getTitle()).isEqualTo("Updated Title");
         assertThat(result.getDescription()).isEqualTo("Updated Description");
         assertThat(result.getContent()).isEqualTo("Updated Content");
         assertThat(result.getCategoryId()).isEqualTo(1L);
 
-        // Now capture and inspect what was actually passed to save()
-        // This is the ArgumentCaptor payoff — we see exactly what went in
+        // Capture what was actually passed to save() and inspect every field —
+        // if the service forgot to call setDescription() or setCategory(),
+        // these assertions catch it
+        ArgumentCaptor<Post> postCaptor = ArgumentCaptor.forClass(Post.class);
         verify(postRepository).save(postCaptor.capture());
         Post capturedPost = postCaptor.getValue();
 
-        // Assert every mutated field on the captured object
-        // If the service forgot to call setDescription() for example, this fails
         assertThat(capturedPost.getTitle()).isEqualTo("Updated Title");
         assertThat(capturedPost.getDescription()).isEqualTo("Updated Description");
         assertThat(capturedPost.getContent()).isEqualTo("Updated Content");
         assertThat(capturedPost.getCategory()).isEqualTo(category);
-        assertThat(capturedPost.getCategory().getName()).isEqualTo("Technology");
 
-        verify(categoryRepository, times(1)).findById(1L);
-        verify(postRepository, times(1)).findById(1L);
-        verify(modelMapper, times(1)).map(any(Post.class), eq(PostDto.class));
+        verify(categoryRepository).findById(1L);
+        verify(postRepository).findById(1L);
     }
 
     @Test
@@ -427,6 +376,8 @@ class PostServiceImplTest {
     void updatePost_CategoryNotFound() {
 
         // --- ARRANGE ---
+
+        // Category not found — service should throw before even fetching the post
         when(categoryRepository.findById(1L))
                 .thenReturn(Optional.empty());
 
@@ -434,7 +385,9 @@ class PostServiceImplTest {
         assertThatThrownBy(() -> postService.updatePost(postDto, 1L))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        verify(categoryRepository, times(1)).findById(1L);
+        verify(categoryRepository).findById(1L);
+
+        // Post fetch and save must never happen — category check comes first
         verify(postRepository, never()).findById(anyLong());
         verify(postRepository, never()).save(any(Post.class));
     }
@@ -444,6 +397,9 @@ class PostServiceImplTest {
     void updatePost_PostNotFound() {
 
         // --- ARRANGE ---
+
+        // Category exists but post doesn't — service should throw after
+        // the category check passes but before save() is called
         when(categoryRepository.findById(1L))
                 .thenReturn(Optional.of(category));
 
@@ -454,18 +410,16 @@ class PostServiceImplTest {
         assertThatThrownBy(() -> postService.updatePost(postDto, 99L))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        verify(categoryRepository, times(1)).findById(1L);
-        verify(postRepository, times(1)).findById(99L);
+        verify(categoryRepository).findById(1L);
+        verify(postRepository).findById(99L);
         verify(postRepository, never()).save(any(Post.class));
     }
 
     // =====================================================================
     // deletePost — Exact Matching
-    // Reason: delete() receives a specific Post object fetched by ID.
-    // No internal mutation happens — the service just fetches and deletes.
-    // Exact matching confirms the RIGHT post was deleted.
-    // ArgumentCaptor here would be overkill — there's nothing to inspect
-    // since the object passed to delete() is exactly what findById returned.
+    // No mutation happens — service just fetches and deletes.
+    // Exact object match on delete() confirms the right post was removed,
+    // not just any Post that happened to pass through.
     // =====================================================================
 
     @Test
@@ -476,17 +430,12 @@ class PostServiceImplTest {
         when(postRepository.findById(1L))
                 .thenReturn(Optional.of(savedPost));
 
-        doNothing().when(postRepository).delete(savedPost);
-
         // --- ACT ---
         postService.deletePost(1L);
 
         // --- ASSERT ---
-        verify(postRepository, times(1)).findById(1L);
-
-        // Exact match — confirms the correct post object was deleted
-        // not just any post, but specifically the one fetched by ID 1L
-        verify(postRepository, times(1)).delete(savedPost);
+        verify(postRepository).findById(1L);
+        verify(postRepository).delete(savedPost);
     }
 
     @Test
@@ -501,19 +450,19 @@ class PostServiceImplTest {
         assertThatThrownBy(() -> postService.deletePost(99L))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        verify(postRepository, times(1)).findById(99L);
+        verify(postRepository).findById(99L);
 
-        // Most critical assertion for delete —
-        // confirms nothing was deleted when post wasn't found
+        // Most critical assertion for delete — nothing must be deleted
+        // when the post doesn't exist
         verify(postRepository, never()).delete(any(Post.class));
     }
 
     // =====================================================================
     // getPostsByCategory — Exact Matching
-    // Reason: findByCategoryId() takes a simple Long ID — exact matching
-    // confirms the service passed the correct categoryId without overhead.
-    // Empty list scenario verifies silent return behavior — this method
-    // intentionally does not throw when no posts are found for a category.
+    // findByCategoryId() takes a simple Long ID — exact matching confirms
+    // the service passed the correct categoryId. The empty list scenario
+    // verifies the method returns silently rather than throwing — a category
+    // with no posts is valid state, not an error.
     // =====================================================================
 
     @Test
@@ -524,23 +473,18 @@ class PostServiceImplTest {
         when(postRepository.findByCategoryId(1L))
                 .thenReturn(List.of(savedPost));
 
-        when(modelMapper.map(any(Post.class), eq(PostDto.class)))
-                .thenReturn(postDto);
-
         // --- ACT ---
-        List<PostDto> result = postService.getPostsByCategory(1L);
+        List<PostResponseDto> result = postService.getPostsByCategory(1L);
 
         // --- ASSERT ---
-        assertThat(result).isNotNull();
-        assertThat(result).hasSize(1);
+        assertThat(result).isNotNull().hasSize(1);
         assertThat(result.getFirst().getId()).isEqualTo(1L);
         assertThat(result.getFirst().getTitle()).isEqualTo("Test Title");
         assertThat(result.getFirst().getDescription()).isEqualTo("Test Description");
         assertThat(result.getFirst().getContent()).isEqualTo("Test Content");
         assertThat(result.getFirst().getCategoryId()).isEqualTo(1L);
 
-        verify(postRepository, times(1)).findByCategoryId(1L);
-        verify(modelMapper, times(1)).map(any(Post.class), eq(PostDto.class));
+        verify(postRepository).findByCategoryId(1L);
     }
 
     @Test
@@ -549,22 +493,18 @@ class PostServiceImplTest {
 
         // --- ARRANGE ---
 
-        // WHY: Returning empty list simulates a valid categoryId that simply
-        // has no posts associated with it — OR an invalid categoryId entirely.
-        // This method does not distinguish between the two cases by design.
+        // Empty list simulates either a valid categoryId with no associated posts
+        // OR an invalid categoryId entirely — this method treats both identically
+        // by design, returning an empty list rather than throwing an exception
         when(postRepository.findByCategoryId(99L))
                 .thenReturn(List.of());
 
         // --- ACT ---
-        List<PostDto> result = postService.getPostsByCategory(99L);
+        List<PostResponseDto> result = postService.getPostsByCategory(99L);
 
         // --- ASSERT ---
-        assertThat(result).isNotNull();
-        assertThat(result).isEmpty();
+        assertThat(result).isNotNull().isEmpty();
 
-        verify(postRepository, times(1)).findByCategoryId(99L);
-
-        // ModelMapper never called — empty list means stream produces nothing
-        verify(modelMapper, never()).map(any(Post.class), eq(PostDto.class));
+        verify(postRepository).findByCategoryId(99L);
     }
 }
