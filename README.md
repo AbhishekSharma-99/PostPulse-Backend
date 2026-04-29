@@ -5,9 +5,10 @@
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen)
 ![MySQL](https://img.shields.io/badge/Database-MySQL-blue)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED)
+![JaCoCo Coverage](https://img.shields.io/badge/Coverage-63%25-orange)
 ![Status](https://img.shields.io/badge/Status-Active-success)
 
-A RESTful blogging API built with **Java 21 and Spring Boot 3**, designed to demonstrate backend engineering fundamentals in a real-world context — secure authentication, layered architecture, database migration management, automated testing, and a fully containerized CI/CD pipeline.
+A RESTful blogging API built with **Java 21 and Spring Boot 3**, designed to demonstrate backend engineering fundamentals in a real-world context — secure authentication, layered architecture, database migration management, comprehensive unit testing, and a fully containerized CI/CD pipeline.
 
 ---
 
@@ -19,7 +20,7 @@ A RESTful blogging API built with **Java 21 and Spring Boot 3**, designed to dem
 | Framework | Spring Boot 3, Spring Security, Spring Data JPA |
 | Database | MySQL 8.0 |
 | Migrations | Flyway |
-| Auth | JWT (jjwt 0.13) |
+| Auth | JWT (jjwt 0.13, signature verification via parseSignedClaims) |
 | Mapping | ModelMapper |
 | Documentation | Swagger UI / OpenAPI 3.0 |
 | Testing | JUnit 5, Mockito, H2 (in-memory), JaCoCo |
@@ -29,13 +30,14 @@ A RESTful blogging API built with **Java 21 and Spring Boot 3**, designed to dem
 
 ## Key Features
 
-- **JWT Authentication** — Stateless token-based auth with role-based access control (`ADMIN` / `USER`)
+- **JWT Authentication** — Stateless token-based auth with signature verification; role-based access control (`ADMIN` / `USER`)
 - **Full CRUD** — Posts, Categories, and Comments with proper relationship management
 - **Flyway Migrations** — All schema changes are versioned SQL files; the database builds and seeds itself on first startup
 - **Pagination & Sorting** — Configurable page number, page size, sort field, and sort direction on all list endpoints
 - **Keyword Search** — Search across blog post content via query parameter
-- **Input Validation** — Request payloads validated with Jakarta Bean Validation (`@NotEmpty`, `@Size`)
-- **Global Exception Handling** — Consistent `ErrorDetails` response format across all endpoints
+- **Input Validation** — Request payloads validated with Jakarta Bean Validation (`@NotNull`, `@NotEmpty`, `@Size`) on all request DTOs
+- **Strict DTO Separation** — Request and Response DTOs enforce boundaries; API never exposes internal entity structure
+- **Global Exception Handling** — Consistent `ErrorDetails` response format across all endpoints with correct HTTP semantics (401 vs 403)
 - **Swagger UI** — Interactive API documentation available at `/swagger-ui/index.html`
 - **Dockerized** — Single `docker-compose up` starts the entire stack
 
@@ -49,10 +51,22 @@ Request → JwtAuthenticationFilter → Controller → Service → Repository �
          SecurityConfig (role-based endpoint protection)
 ```
 
-- **Strict layered separation** — Controller → Service → Repository, no layer bypasses
-- **DTO / Payload pattern** — The API never exposes internal entity structure directly; all I/O goes through `payload` classes
+- **Strict layered separation** — Controller → Service → Repository, no layer bypasses; constructor injection enforced
+- **DTO / Payload pattern** — The API never exposes internal entity structure directly; all I/O goes through request/response DTOs
 - **Flyway-first schema management** — Hibernate is set to `validate` only; Flyway owns all DDL. Any entity-to-table mismatch fails fast at startup
-- **Profile-based configuration** — `dev` profile for local development, `prod` profile for Docker deployment
+- **Profile-based configuration** — `dev` profile for local development, `prod` profile for Docker deployment, `test` profile for CI/CD with H2 isolation
+
+---
+
+## Testing & Code Quality
+
+- **Service Layer Tests**: All service implementations (Post, Category, Comment, Auth) have comprehensive unit test coverage using JUnit 5 and Mockito
+- **Repository Layer Tests**: H2 in-memory database for integration testing with Flyway migrations disabled in test profile
+- **Real Mapping Validation**: ModelMapper tested with `@Spy` to validate actual DTO conversions and property mappings
+- **Test Isolation**: H2 in-memory database in test profile; Flyway disabled during test execution; tests are independent and repeatable
+- **Test Strategy**: ArgumentCaptor verifies service method arguments; exact object matching prevents incorrect entity mutations; `never()` verification proves failure guards short-circuit before persistence
+- **Coverage Target**: Currently at 63% JaCoCo coverage; targeting 75%+ with ongoing controller layer tests
+- **Test Naming**: Test names document behavior — e.g., `createPost_ValidRequest_Returns201_AndCallsServiceWithCorrectDto()` reads as a specification
 
 ---
 
@@ -63,7 +77,8 @@ Schema is managed entirely by Flyway. On startup, Flyway runs any pending migrat
 ```
 resources/db/migration/
 ├── V1__Initial_Schema_and_Roles.sql   — creates all tables, seeds ROLE_ADMIN and ROLE_USER
-└── V2__Seed_Dummy_Data.sql            — seeds demo users, categories, posts, and comments
+├── V2__Seed_Dummy_Data.sql            — seeds demo users, categories, posts, and comments
+└── V3__Add_unique_not_null_to_roles_name.sql  — enforces Role.name UNIQUE NOT NULL at database level
 ```
 
 Hibernate is configured with `ddl-auto=validate` — it verifies entity-to-table mapping at startup but never touches the schema itself.
@@ -206,27 +221,38 @@ src/
 ├── main/
 │   ├── java/com/postpulse/
 │   │   ├── config/         — SecurityConfig (Spring Security, JWT wiring, Swagger security scheme)
-│   │   ├── controller/     — REST controllers
+│   │   ├── controller/     — REST controllers with @Valid on all request parameters
 │   │   ├── service/        — business logic interfaces
-│   │   │   └── impl/       — service implementations
+│   │   │   └── impl/       — service implementations with @Transactional on write methods
 │   │   ├── repository/     — Spring Data JPA repositories
-│   │   ├── entity/         — JPA entities
-│   │   ├── payload/        — Data Transfer Objects (DTOs) for all API I/O
-│   │   ├── security/       — JWT filter, UserDetails service, authentication entry point
-│   │   ├── exception/      — global exception handler and custom exception classes
-│   │   └── utils/          — AppConstants and dev utilities
+│   │   ├── entity/         — JPA entities with proper cascade and relationship config
+│   │   ├── payload/        — Data Transfer Objects (Request and Response types) with Bean Validation
+│   │   ├── security/       — JWT filter with parseSignedClaims(), UserDetails service, authentication entry point
+│   │   ├── exception/      — global exception handler with correct HTTP status codes and security-sanitized responses
+│   │   └── utils/          — AppConstants and utilities
 │   └── resources/
-│       ├── db/migration/   — Flyway SQL migration files
+│       ├── db/migration/   — Flyway SQL migration files (V1, V2, V3)
 │       ├── application.properties
 │       ├── application-dev.properties
-│       └── application-prod.properties
+│       ├── application-prod.properties
 └── test/
     ├── java/com/postpulse/
-    │   ├── repository/     — repository layer tests
-    │   └── service/impl/   — service implementation tests
+    │   ├── repository/     — repository layer integration tests
+    │   ├── service/impl/   — service implementation unit tests with real ModelMapper validation
+    │   └── controller/     — controller layer unit tests (in progress)
     └── resources/
-        └── application.properties  — H2 in-memory config, Flyway disabled for tests
+        └── application.properties  — H2 in-memory config, Flyway disabled
 ```
+
+---
+
+## Security Highlights
+
+- **JWT Signature Verification**: Tokens validated with `parseSignedClaims()` — unsigned tokens are rejected
+- **Constructor Injection**: All Spring dependencies injected via constructors; `@Autowired` field injection eliminated
+- **Authorization Scoping**: Public endpoints limited to GET `/posts/**` and GET `/categories/**`; write operations require ADMIN role
+- **Input Validation**: All request DTOs enforce `@NotNull`, `@NotEmpty`, `@Size`; validation failures return 400 Bad Request before reaching service layer
+- **Exception Handling**: Correct HTTP semantics — 401 Unauthorized (unauthenticated), 403 Forbidden (authenticated but not authorized), 404 Not Found, 500 Internal Server Error
 
 ---
 
