@@ -2,6 +2,7 @@ package com.postpulse.payload;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -24,5 +25,6 @@ public class PostDto {
     private String content;
 
     @Schema(description = "Blog post Category ID")
-    private long categoryId;
+    @NotNull(message = "Category id is required")
+    private Long categoryId;
 }
