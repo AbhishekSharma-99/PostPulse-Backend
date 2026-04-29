@@ -18,11 +18,15 @@ import java.util.Date;
 @Component
 public class JwtTokenProvider {
 
-    @Value("${app.jwt-secret}")
-    private String jwtSecret;
+    private final String jwtSecret;
+    private final long jwtExpirationDate;
 
-    @Value("${app.jwt-expiration-milliseconds}")
-    private long jwtExpirationDate;
+    public JwtTokenProvider(
+            @Value("${app.jwt-secret}") String jwtSecret,
+            @Value("${app.jwt-expiration-milliseconds}") long jwtExpirationDate) {
+        this.jwtSecret = jwtSecret;
+        this.jwtExpirationDate = jwtExpirationDate;
+    }
 
     public String generateToken(Authentication authentication) {
         String username = authentication.getName();
@@ -55,7 +59,7 @@ public class JwtTokenProvider {
             Jwts.parser()
                     .verifyWith(key())
                     .build()
-                    .parse(token);
+                    .parseSignedClaims(token);
             return true;
         } catch (MalformedJwtException e) {
             throw new BlogAPIException(HttpStatus.BAD_REQUEST, "Invalid JWT token");
