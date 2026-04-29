@@ -5,6 +5,7 @@ import com.postpulse.entity.User;
 import com.postpulse.exception.BlogAPIException;
 import com.postpulse.payload.LoginDto;
 import com.postpulse.payload.RegisterDto;
+import com.postpulse.payload.RegisterResponseDto;
 import com.postpulse.repository.RoleRepository;
 import com.postpulse.repository.UserRepository;
 import com.postpulse.security.JwtTokenProvider;
@@ -55,7 +56,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public void register(RegisterDto registerDto) {
+    public RegisterResponseDto register(RegisterDto registerDto) {
 
         if (userRepository.existsByUsername(registerDto.getUsername())) {
             throw new BlogAPIException(HttpStatus.BAD_REQUEST, "Username already exists.");
@@ -79,6 +80,13 @@ public class AuthServiceImpl implements AuthService {
 
         user.setRoles(Set.of(userRole));
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        return new RegisterResponseDto(
+                savedUser.getId(),
+                savedUser.getUsername(),
+                savedUser.getEmail(),
+                "User registered successfully."
+        );
     }
 }

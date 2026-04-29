@@ -1,6 +1,9 @@
 package com.postpulse.controller;
 
-import com.postpulse.payload.*;
+import com.postpulse.payload.JwtAuthResponse;
+import com.postpulse.payload.LoginDto;
+import com.postpulse.payload.RegisterDto;
+import com.postpulse.payload.RegisterResponseDto;
 import com.postpulse.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,18 +29,15 @@ public class AuthController {
     @Operation(summary = "Login", description = "Authenticate user with provided credentials")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Authentication successful")
     @PostMapping(value = {"/login", "/signin"})
-    public ResponseEntity<JWTAuthResponse> login(@Valid @RequestBody LoginDto loginDto) {
+    public ResponseEntity<JwtAuthResponse> login(@Valid @RequestBody LoginDto loginDto) {
         String token = authService.login(loginDto);
-        return ResponseEntity.ok(new JWTAuthResponse(token, "Bearer"));
+        return ResponseEntity.ok(new JwtAuthResponse(token));
     }
 
     @Operation(summary = "Register", description = "Register new user with provided credentials")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Registration successful")
     @PostMapping(value = {"/register", "/signup"})
-    public ResponseEntity<OperationResponse> register(@Valid @RequestBody RegisterDto registerDto) {
-        authService.register(registerDto);
-        return new ResponseEntity<>(
-                new OperationResponse(true, "User registered successfully."),
-                HttpStatus.CREATED);
+    public ResponseEntity<RegisterResponseDto> register(@Valid @RequestBody RegisterDto registerDto) {
+        return new ResponseEntity<>(authService.register(registerDto), HttpStatus.CREATED);
     }
 }
