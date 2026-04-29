@@ -98,10 +98,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(AuthorizationDeniedException.class)
     public ResponseEntity<ErrorDetails> handleAuthorizationDeniedException(
             AuthorizationDeniedException exception, WebRequest webRequest) {
+        log.warn("Authorization denied: {}", exception.getMessage());
         ErrorDetails errorDetails = new ErrorDetails(
                 new Date(),
-                exception.getMessage(),
+                "You do not have permission to perform this action.",
                 webRequest.getDescription(false));
-        return new ResponseEntity<>(errorDetails, HttpStatus.UNAUTHORIZED);
+        return new ResponseEntity<>(errorDetails, HttpStatus.FORBIDDEN);
     }
 }
