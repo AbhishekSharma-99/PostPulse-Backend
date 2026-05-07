@@ -37,7 +37,7 @@ A RESTful blogging API built with **Java 21 and Spring Boot 3**, designed to dem
 - **Keyword Search** — Search across blog post content via query parameter
 - **Input Validation** — Request payloads validated with Jakarta Bean Validation (`@NotNull`, `@NotEmpty`, `@Size`) on all request DTOs
 - **Strict DTO Separation** — Request and Response DTOs enforce boundaries; API never exposes internal entity structure
-- **Global Exception Handling** — Consistent `ErrorDetails` response format across all endpoints with correct HTTP semantics (401 vs 403)
+- **Global Exception Handling** — Consistent `ProblemDetail` response format across all endpoints with correct HTTP semantics (401 vs 403)
 - **Swagger UI** — Interactive API documentation available at `/swagger-ui/index.html`
 - **Dockerized** — Single `docker-compose up` starts the entire stack
 
