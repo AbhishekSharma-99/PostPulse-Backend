@@ -6,8 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -16,29 +16,38 @@ import java.util.Set;
 
 @Entity
 @Table(
-        name = "posts", uniqueConstraints = {@UniqueConstraint(columnNames = {"title"})}
+        name = "posts",
+        indexes = {
+                @Index(name = "idx_posts_user_id",     columnList = "user_id"),
+                @Index(name = "idx_posts_category_id", columnList = "category_id")
+        }
 )
-public class Post {
-    @Id
-    @GeneratedValue(
-            strategy = GenerationType.IDENTITY
-    )
-    private long id;
+public class Post extends BaseEntity{
 
-    @Column(name = "title", nullable = false)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true)
     private String title;
 
-    @Column(name = "description", nullable = false, length = 500)
+    @Column(nullable = false, length = 500)
     private String description;
 
-    @Column(name = "content", nullable = false, columnDefinition = "TEXT")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    @OneToMany(mappedBy = "post", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<Comment> comments = new HashSet<>();
+    @Column(nullable = false, unique = true)
+    private String slug;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id")
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
+    @OneToMany(mappedBy = "post", cascade = CascadeType.ALL, orphanRemoval = true    )
+    private List<Comment> comments = new ArrayList<>();
 }
