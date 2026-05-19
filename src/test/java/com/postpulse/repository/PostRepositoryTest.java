@@ -1,12 +1,16 @@
 package com.postpulse.repository;
 
-import com.postpulse.repository.PostRepository;
+import com.postpulse.entity.Category;
 import com.postpulse.entity.Post;
+import com.postpulse.entity.User;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
+
+import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -16,103 +20,191 @@ class PostRepositoryTest {
     @Autowired
     private PostRepository postRepository;
 
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+    @Autowired
+    private UserRepository userRepository;   // <-- added
+
+    private Category technology;
+    private User author;                     // <-- added
+    private Post springBootPost;
+    private Post hibernatePost;
+
+    @BeforeEach
+    void setUp() {
+        // 1. Create and save a User (mandatory for Post)
+        author = new User();
+        author.setUsername("techWriter");
+        author.setEmail("writer@example.com");
+        author.setPassword("encodedPassword123");
+        author = userRepository.save(author);
+
+        // 2. Create and save a Category
+        technology = new Category();
+        technology.setName("Technology");
+        technology.setDescription("Posts about software engineering and tech");
+        technology = categoryRepository.save(technology);
+
+        // 3. First Post
+        springBootPost = new Post();
+        springBootPost.setTitle("Introduction to Spring Boot");
+        springBootPost.setDescription("A deep dive into Spring Boot internals");
+        springBootPost.setContent("Spring Boot auto-configuration works by scanning the classpath...");
+        springBootPost.setSlug("introduction-to-spring-boot");
+        springBootPost.setCategory(technology);
+        springBootPost.setUser(author);
+        springBootPost = postRepository.save(springBootPost);
+
+        // 4. Second Post
+        hibernatePost = new Post();
+        hibernatePost.setTitle("Hibernate Session Internals");
+        hibernatePost.setDescription("How Hibernate manages the persistence context");
+        hibernatePost.setContent("Every EntityManager wraps a Hibernate Session...");
+        hibernatePost.setSlug("hibernate-session-internals");
+        hibernatePost.setCategory(technology);
+        hibernatePost.setUser(author);
+        hibernatePost = postRepository.save(hibernatePost);
+    }
+
+    // =====================================================================
+    // findByCategoryId
+    // =====================================================================
+
     @Test
-    void savePost_ShouldPersistPost() {
-        // Given
-        Post post = new Post();
-        post.setTitle("Test Title");
-        post.setDescription("Test Description");
-        post.setContent("Test Content");
-
-        // When
-        Post savedPost = postRepository.save(post);
-
-        // Then
-        assertThat(savedPost).isNotNull();
-        assertThat(savedPost.getId()).isGreaterThan(0);
-        assertThat(savedPost.getTitle()).isEqualTo("Test Title");
+    @DisplayName("findByCategoryId — should return all posts belonging to the given category")
+    void findByCategoryId_ReturnsMatchingPosts_WhenCategoryHasPosts() {
+        List<Post> result = postRepository.findByCategoryId(technology.getId());
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(Post::getSlug)
+                .containsExactlyInAnyOrder(
+                        "introduction-to-spring-boot",
+                        "hibernate-session-internals"
+                );
     }
 
     @Test
-    void findById_ShouldReturnPost_WhenExists() {
-        // Given
-        Post post = new Post();
-        post.setTitle("Test Title");
-        post.setDescription("Test Description");
-        post.setContent("Test Content");
-        Post savedPost = postRepository.save(post);
+    @DisplayName("findByCategoryId — should return empty list when category has no posts")
+    void findByCategoryId_ReturnsEmptyList_WhenCategoryHasNoPosts() {
+        Category finance = new Category();
+        finance.setName("Finance");
+        finance.setDescription("Posts about financial markets");
+        finance = categoryRepository.save(finance);
 
-        // When
-        var foundPost = postRepository.findById(savedPost.getId());
-
-        // Then
-        assertThat(foundPost).isPresent();
-        assertThat(foundPost.get().getTitle()).isEqualTo("Test Title");
+        List<Post> result = postRepository.findByCategoryId(finance.getId());
+        assertThat(result).isNotNull().isEmpty();
     }
 
     @Test
-    void findAll_ShouldReturnAllPosts() {
-        // Given
-        Post post1 = new Post();
-        post1.setTitle("First Post");
-        post1.setDescription("First Description");
-        post1.setContent("First Content");
-        postRepository.save(post1);
+    @DisplayName("findByCategoryId — should not return posts from a different category")
+    void findByCategoryId_DoesNotReturnPostsFromOtherCategories() {
+        Category devOps = new Category();
+        devOps.setName("DevOps");
+        devOps.setDescription("Posts about CI/CD and infrastructure");
+        devOps = categoryRepository.save(devOps);
 
-        Post post2 = new Post();
-        post2.setTitle("Second Post");
-        post2.setDescription("Second Description");
-        post2.setContent("Second Content");
-        postRepository.save(post2);
+        Post dockerPost = new Post();
+        dockerPost.setTitle("Docker Networking Explained");
+        dockerPost.setDescription("Bridge, host, and overlay networks");
+        dockerPost.setContent("Docker uses a virtual bridge by default...");
+        dockerPost.setSlug("docker-networking-explained");
+        dockerPost.setCategory(devOps);
+        dockerPost.setUser(author);   // user is set
+        postRepository.save(dockerPost);
 
-        // When
-        Page<Post> posts = postRepository.findAll(PageRequest.of(0, 10));
+        List<Post> result = postRepository.findByCategoryId(technology.getId());
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(Post::getSlug)
+                .doesNotContain("docker-networking-explained");
+    }
 
-        // Then
-        assertThat(posts.getContent()).hasSize(2);
-        assertThat(posts).extracting("title").contains("First Post", "Second Post");
+    // =====================================================================
+    // existsBySlug
+    // =====================================================================
+
+    @Test
+    @DisplayName("existsBySlug — should return true when a post with that slug exists")
+    void existsBySlug_ReturnsTrue_WhenSlugExists() {
+        boolean exists = postRepository.existsBySlug("introduction-to-spring-boot");
+        assertThat(exists).isTrue();
     }
 
     @Test
-    void updatePost_ShouldUpdatePostData() {
-        // Given
-        Post post = new Post();
-        post.setTitle("Test Title");
-        post.setDescription("Test Description");
-        post.setContent("Test Content");
-        Post savedPost = postRepository.save(post);
+    @DisplayName("existsBySlug — should return false when no post has that slug")
+    void existsBySlug_ReturnsFalse_WhenSlugDoesNotExist() {
+        boolean exists = postRepository.existsBySlug("non-existent-slug");
+        assertThat(exists).isFalse();
+    }
 
-        // When
-        savedPost.setTitle("Updated Title");
-        Post updatedPost = postRepository.save(savedPost);
+    // =====================================================================
+    // existsBySlugAndIdNot
+    // =====================================================================
 
-        // Then
-        assertThat(updatedPost.getTitle()).isEqualTo("Updated Title");
+    @Test
+    @DisplayName("existsBySlugAndIdNot — should return true when a DIFFERENT post owns the slug")
+    void existsBySlugAndIdNot_ReturnsTrue_WhenDifferentPostOwnsSlug() {
+        boolean conflict = postRepository.existsBySlugAndIdNot(
+                "introduction-to-spring-boot", hibernatePost.getId()
+        );
+        assertThat(conflict).isTrue();
     }
 
     @Test
-    void deletePost_ShouldRemovePost() {
-        // Given
-        Post post = new Post();
-        post.setTitle("Test Title");
-        post.setDescription("Test Description");
-        post.setContent("Test Content");
-        Post savedPost = postRepository.save(post);
-
-        // When
-        postRepository.delete(savedPost);
-        var deletedPost = postRepository.findById(savedPost.getId());
-
-        // Then
-        assertThat(deletedPost).isEmpty();
+    @DisplayName("existsBySlugAndIdNot — should return false when the only match is the excluded post (self-reference)")
+    void existsBySlugAndIdNot_ReturnsFalse_WhenOnlyMatchIsExcludedPost() {
+        boolean conflict = postRepository.existsBySlugAndIdNot(
+                "introduction-to-spring-boot", springBootPost.getId()
+        );
+        assertThat(conflict).isFalse();
     }
 
     @Test
-    void findById_ShouldReturnEmpty_WhenPostDoesNotExist() {
-        // When
-        var notFoundPost = postRepository.findById(999L);
+    @DisplayName("existsBySlugAndIdNot — should return false when the slug does not exist at all")
+    void existsBySlugAndIdNot_ReturnsFalse_WhenSlugAbsent() {
+        boolean conflict = postRepository.existsBySlugAndIdNot(
+                "completely-new-slug", springBootPost.getId()
+        );
+        assertThat(conflict).isFalse();
+    }
 
-        // Then
-        assertThat(notFoundPost).isEmpty();
+    // =====================================================================
+    // findBySlug
+    // =====================================================================
+
+    @Test
+    @DisplayName("findBySlug — should return the post wrapped in Optional when slug exists")
+    void findBySlug_ReturnsPost_WhenSlugExists() {
+        Optional<Post> result = postRepository.findBySlug("introduction-to-spring-boot");
+        assertThat(result).isPresent();
+        assertThat(result.get().getId()).isEqualTo(springBootPost.getId());
+        assertThat(result.get().getTitle()).isEqualTo("Introduction to Spring Boot");
+    }
+
+    @Test
+    @DisplayName("findBySlug — should return Optional.empty when slug does not exist")
+    void findBySlug_ReturnsEmpty_WhenSlugDoesNotExist() {
+        Optional<Post> result = postRepository.findBySlug("no-such-slug");
+        assertThat(result).isEmpty();
+    }
+
+    // =====================================================================
+    // deletePostById
+    // =====================================================================
+
+    @Test
+    @DisplayName("deletePostById — should return 1 and remove the row when the ID exists")
+    void deletePostById_ReturnsOne_AndRemovesRow_WhenIdExists() {
+        Long idToDelete = springBootPost.getId();
+        int rowsAffected = postRepository.deletePostById(idToDelete);
+        assertThat(rowsAffected).isEqualTo(1);
+        Optional<Post> deleted = postRepository.findById(idToDelete);
+        assertThat(deleted).isEmpty();
+    }
+
+    @Test
+    @DisplayName("deletePostById — should return 0 when no row matches the given ID")
+    void deletePostById_ReturnsZero_WhenIdDoesNotExist() {
+        int rowsAffected = postRepository.deletePostById(99999L);
+        assertThat(rowsAffected).isEqualTo(0);
     }
 }
