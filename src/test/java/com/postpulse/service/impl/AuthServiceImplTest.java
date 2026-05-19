@@ -3,9 +3,9 @@ package com.postpulse.service.impl;
 import com.postpulse.entity.Role;
 import com.postpulse.entity.User;
 import com.postpulse.exception.BlogAPIException;
-import com.postpulse.payload.LoginDto;
-import com.postpulse.payload.RegisterDto;
-import com.postpulse.payload.RegisterResponseDto;
+import com.postpulse.payload.auth.LoginRequest;
+import com.postpulse.payload.auth.RegisterRequest;
+import com.postpulse.payload.auth.RegisterResponse;
 import com.postpulse.repository.RoleRepository;
 import com.postpulse.repository.UserRepository;
 import com.postpulse.security.JwtTokenProvider;
@@ -53,19 +53,19 @@ class AuthServiceImplTest {
     @InjectMocks
     private AuthServiceImpl authService;
 
-    private LoginDto loginDto;
-    private RegisterDto registerDto;
+    private LoginRequest loginRequest;
+    private RegisterRequest registerRequest;
     private Role userRole;
 
     @BeforeEach
     void setUp() {
-        loginDto = new LoginDto("abhishek@example.com", "password123");
+        loginRequest = new LoginRequest("abhishek@example.com", "password123");
 
-        registerDto = new RegisterDto();
-        registerDto.setName("Abhishek Sharma");
-        registerDto.setUsername("abhishek");
-        registerDto.setEmail("abhishek@example.com");
-        registerDto.setPassword("password123");
+        registerRequest = new RegisterRequest();
+        registerRequest.setName("Abhishek Sharma");
+        registerRequest.setUsername("abhishek");
+        registerRequest.setEmail("abhishek@example.com");
+        registerRequest.setPassword("password123");
 
         userRole = new Role();
         userRole.setId(1L);
@@ -100,7 +100,7 @@ class AuthServiceImplTest {
                 .thenReturn("mocked.jwt.token");
 
         // --- ACT ---
-        String token = authService.login(loginDto);
+        String token = authService.login(loginRequest);
 
         // --- ASSERT ---
         assertThat(token).isNotNull().isEqualTo("mocked.jwt.token");
@@ -131,7 +131,7 @@ class AuthServiceImplTest {
                 .thenThrow(new BadCredentialsException("Bad credentials"));
 
         // --- ACT & ASSERT ---
-        assertThatThrownBy(() -> authService.login(loginDto))
+        assertThatThrownBy(() -> authService.login(loginRequest))
                 .isInstanceOf(BadCredentialsException.class)
                 .hasMessage("Bad credentials");
 
@@ -180,7 +180,7 @@ class AuthServiceImplTest {
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
         // --- ACT ---
-        RegisterResponseDto response = authService.register(registerDto);
+        RegisterResponse response = authService.register(registerRequest);
 
         // --- ASSERT ---
         assertThat(response).isNotNull();
@@ -218,7 +218,7 @@ class AuthServiceImplTest {
         when(userRepository.existsByUsername("abhishek")).thenReturn(true);
 
         // --- ACT & ASSERT ---
-        assertThatThrownBy(() -> authService.register(registerDto))
+        assertThatThrownBy(() -> authService.register(registerRequest))
                 .isInstanceOf(BlogAPIException.class)
                 .hasMessage("Username already exists.")
                 .satisfies(ex -> assertThat(((BlogAPIException) ex).getHttpStatus())
@@ -242,7 +242,7 @@ class AuthServiceImplTest {
         when(userRepository.existsByEmail("abhishek@example.com")).thenReturn(true);
 
         // --- ACT & ASSERT ---
-        assertThatThrownBy(() -> authService.register(registerDto))
+        assertThatThrownBy(() -> authService.register(registerRequest))
                 .isInstanceOf(BlogAPIException.class)
                 .hasMessage("Email already exists.")
                 .satisfies(ex -> assertThat(((BlogAPIException) ex).getHttpStatus())
@@ -268,7 +268,7 @@ class AuthServiceImplTest {
         when(roleRepository.findByName("ROLE_USER")).thenReturn(Optional.empty());
 
         // --- ACT & ASSERT ---
-        assertThatThrownBy(() -> authService.register(registerDto))
+        assertThatThrownBy(() -> authService.register(registerRequest))
                 .isInstanceOf(BlogAPIException.class)
                 .hasMessage("Default role not found. Ensure database migrations have run.")
                 .satisfies(ex -> assertThat(((BlogAPIException) ex).getHttpStatus())
@@ -300,7 +300,7 @@ class AuthServiceImplTest {
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
         // --- ACT ---
-        authService.register(registerDto);
+        authService.register(registerRequest);
 
         // --- ASSERT ---
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
