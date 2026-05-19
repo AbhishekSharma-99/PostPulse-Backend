@@ -3,13 +3,14 @@ package com.postpulse.service.impl;
 import com.postpulse.entity.Role;
 import com.postpulse.entity.User;
 import com.postpulse.exception.BlogAPIException;
-import com.postpulse.payload.LoginDto;
-import com.postpulse.payload.RegisterDto;
-import com.postpulse.payload.RegisterResponseDto;
+import com.postpulse.payload.auth.LoginRequest;
+import com.postpulse.payload.auth.RegisterRequest;
+import com.postpulse.payload.auth.RegisterResponse;
 import com.postpulse.repository.RoleRepository;
 import com.postpulse.repository.UserRepository;
 import com.postpulse.security.JwtTokenProvider;
 import com.postpulse.service.AuthService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
 
+@Slf4j
 @Service
 public class AuthServiceImpl implements AuthService {
 
@@ -43,34 +45,37 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public String login(LoginDto loginDto) {
+    public String login(LoginRequest loginRequest) {
+        log.debug("Login attempt for user/email: {}", loginRequest.getUsernameOrEmail());
         Authentication authentication = authenticationManager
                 .authenticate(new UsernamePasswordAuthenticationToken(
-                        loginDto.getUsernameOrEmail(),
-                        loginDto.getPassword()));
+                        loginRequest.getUsernameOrEmail(),
+                        loginRequest.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        return jwtTokenProvider.generateToken(authentication);
+        String token = jwtTokenProvider.generateToken(authentication);
+        log.info("User logged in successfully: {}", loginRequest.getUsernameOrEmail());
+        return token;
     }
 
     @Override
     @Transactional
-    public RegisterResponseDto register(RegisterDto registerDto) {
+    public RegisterResponse register(RegisterRequest registerRequest) {
 
-        if (userRepository.existsByUsername(registerDto.getUsername())) {
+        if (userRepository.existsByUsername(registerRequest.getUsername())) {
             throw new BlogAPIException(HttpStatus.BAD_REQUEST, "Username already exists.");
         }
 
-        if (userRepository.existsByEmail(registerDto.getEmail())) {
+        if (userRepository.existsByEmail(registerRequest.getEmail())) {
             throw new BlogAPIException(HttpStatus.BAD_REQUEST, "Email already exists.");
         }
 
         User user = new User();
-        user.setName(registerDto.getName());
-        user.setUsername(registerDto.getUsername());
-        user.setEmail(registerDto.getEmail());
-        user.setPassword(passwordEncoder.encode(registerDto.getPassword()));
+        user.setName(registerRequest.getName());
+        user.setUsername(registerRequest.getUsername());
+        user.setEmail(registerRequest.getEmail());
+        user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
 
         Role userRole = roleRepository.findByName("ROLE_USER")
                 .orElseThrow(() -> new BlogAPIException(
@@ -81,8 +86,9 @@ public class AuthServiceImpl implements AuthService {
         user.setRoles(Set.of(userRole));
 
         User savedUser = userRepository.save(user);
+        log.info("Registered new user with id: {}", savedUser.getId());
 
-        return new RegisterResponseDto(
+        return new RegisterResponse(
                 savedUser.getId(),
                 savedUser.getUsername(),
                 savedUser.getEmail(),

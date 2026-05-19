@@ -1,11 +1,11 @@
 package com.postpulse.service;
 
-import com.postpulse.payload.LoginDto;
-import com.postpulse.payload.RegisterDto;
-import com.postpulse.payload.RegisterResponseDto;
+import com.postpulse.payload.auth.LoginRequest;
+import com.postpulse.payload.auth.RegisterRequest;
+import com.postpulse.payload.auth.RegisterResponse;
 
 public interface AuthService {
-    String login(LoginDto loginDto);
+    String login(LoginRequest loginRequest);
 
-    RegisterResponseDto register(RegisterDto registerDto);
+    RegisterResponse register(RegisterRequest registerRequest);
 }
