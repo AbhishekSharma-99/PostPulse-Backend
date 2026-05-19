@@ -2,12 +2,14 @@ package com.postpulse.service.impl;
 
 import com.postpulse.entity.Category;
 import com.postpulse.entity.Post;
+import com.postpulse.entity.User;
 import com.postpulse.exception.ResourceNotFoundException;
-import com.postpulse.payload.PostDto;
-import com.postpulse.payload.PostResponse;
-import com.postpulse.payload.PostResponseDto;
+import com.postpulse.payload.post.*;
 import com.postpulse.repository.CategoryRepository;
 import com.postpulse.repository.PostRepository;
+import com.postpulse.utils.SecurityUtils;
+import com.postpulse.utils.SlugUtils;
+import com.postpulse.utils.TestModelMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,7 +20,6 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
-import org.modelmapper.PropertyMap;
 import org.springframework.data.domain.*;
 
 import java.util.List;
@@ -38,33 +39,27 @@ class PostServiceImplTest {
     @Mock
     private CategoryRepository categoryRepository;
 
+    @Mock
+    private SecurityUtils securityUtils;
+
+    @Mock
+    private SlugUtils slugUtils;
+
     // @Spy wraps a real ModelMapper instance — actual mapping logic runs,
-    // including the custom PropertyMap that populates categoryId from
-    // post.getCategory().getId(). A @Mock here would prove map() was called
-    // but never that the field mapping itself is correct.
+    // including both custom PropertyMaps that populate categoryId, categoryName,
+    // and authorName from nested associations. A @Mock here would prove map()
+    // was called but never that the field mapping itself is correct.
     @Spy
-    private ModelMapper modelMapper = buildModelMapper();
+    private ModelMapper modelMapper = TestModelMapper.getModelMapper();
 
     @InjectMocks
     private PostServiceImpl postService;
 
-    private PostDto postDto;
-    private Post savedPost;
     private Category category;
-
-    // Mirrors the production @Bean exactly — same PropertyMap, same registration.
-    // Any divergence here would mean tests pass while production silently
-    // maps categoryId as 0.
-    private static ModelMapper buildModelMapper() {
-        ModelMapper modelMapper = new ModelMapper();
-        modelMapper.addMappings(new PropertyMap<Post, PostResponseDto>() {
-            @Override
-            protected void configure() {
-                map().setCategoryId(source.getCategory().getId());
-            }
-        });
-        return modelMapper;
-    }
+    private User user;
+    private Post savedPost;
+    private PostCreateRequest createRequest;
+    private PostUpdateRequest updateRequest;
 
     @BeforeEach
     void setUp() {
@@ -72,79 +67,133 @@ class PostServiceImplTest {
         category.setId(1L);
         category.setName("Technology");
 
-        // postDto is the incoming request object — no ID (client doesn't set it)
-        postDto = new PostDto();
-        postDto.setTitle("Test Title");
-        postDto.setDescription("Test Description");
-        postDto.setContent("Test Content");
-        postDto.setCategoryId(1L);
+        user = new User();
+        user.setId(10L);
+        user.setName("Abhishek Sharma");
 
-        // 'savedPost' is what the repository returns after save() —
-        // category must be set here so the real ModelMapper can traverse
-        // getCategory().getId() without a NullPointerException
+        // savedPost is what the repository returns after save() —
+        // both category and user must be set so the real ModelMapper can
+        // traverse getCategory().getId(), getCategory().getName(), and
+        // getUser().getName() without a NullPointerException.
         savedPost = new Post();
         savedPost.setId(1L);
-        savedPost.setTitle("Test Title");
-        savedPost.setDescription("Test Description");
-        savedPost.setContent("Test Content");
+        savedPost.setTitle("Introduction to Spring Boot");
+        savedPost.setDescription("A deep dive into Spring Boot internals");
+        savedPost.setContent("Spring Boot auto-configuration works by scanning the classpath...");
+        savedPost.setSlug("introduction-to-spring-boot");
         savedPost.setCategory(category);
+        savedPost.setUser(user);
+
+        // createRequest is the incoming DTO — no ID, no slug, no user.
+        // Author is resolved from the SecurityContext inside the service.
+        createRequest = new PostCreateRequest();
+        createRequest.setTitle("Introduction to Spring Boot");
+        createRequest.setDescription("A deep dive into Spring Boot internals");
+        createRequest.setContent("Spring Boot auto-configuration works by scanning the classpath...");
+        createRequest.setCategoryId(1L);
+
+        updateRequest = new PostUpdateRequest();
+        updateRequest.setTitle("Introduction to Spring Boot — Revised");
+        updateRequest.setDescription("An updated deep dive into Spring Boot internals");
+        updateRequest.setContent("Spring Boot 3 requires Java 17 as a baseline...");
+        updateRequest.setCategoryId(1L);
     }
+
+
 
     // =====================================================================
     // createPost — ArgumentCaptor on save()
-    // postRepository.save() uses ArgumentCaptor because the post object
-    // is mutated (setCategory) inside the service before persisting —
-    // we capture the mutated state and assert the category was correctly
-    // assigned, which any(Post.class) would silently let through.
-    // With real ModelMapper, output fields are asserted directly —
-    // no map() stubs needed, proving transformation works end-to-end.
+    // The service fetches category, resolves the authenticated user from
+    // SecurityContext, maps the DTO to an entity, then mutates the entity
+    // (setCategory, setUser, setSlug) before calling save(). ArgumentCaptor
+    // intercepts the fully mutated Post and asserts every field was set —
+    // any(Post.class) would silently pass even if setUser() was never called.
+    // Real ModelMapper runs end-to-end — if the PropertyMap breaks, the
+    // authorName / categoryName assertions catch it immediately.
     // =====================================================================
 
     @Test
-    @DisplayName("Should successfully create a post when category exists")
+    @DisplayName("Should successfully create a post when category and user both exist")
     void createPost_Success() {
+
+        // --- ARRANGE ---
+
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+
+        when(securityUtils.getCurrentUser()).thenReturn(user);
+
+        when(slugUtils.generateUniqueSlug("Introduction to Spring Boot", null))
+                .thenReturn("introduction-to-spring-boot");
+
+        when(postRepository.save(any(Post.class))).thenReturn(savedPost);
+
+        // --- ACT ---
+        PostResponse result = postService.createPost(createRequest);
+
+        // --- ASSERT ---
+
+        // Real ModelMapper ran — these values came from the PropertyMap traversal,
+        // not stubs. If getCategory() or getUser() is null on the returned entity,
+        // categoryName and authorName would be null here and fail immediately.
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getTitle()).isEqualTo("Introduction to Spring Boot");
+        assertThat(result.getCategoryId()).isEqualTo(1L);
+        assertThat(result.getCategoryName()).isEqualTo("Technology");
+        assertThat(result.getAuthorName()).isEqualTo("Abhishek Sharma");
+
+        // Capture the mutated Post passed to save() — verifies that category,
+        // user, and slug were all assigned before persistence, not after.
+        ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
+        verify(postRepository).save(captor.capture());
+        Post captured = captor.getValue();
+        assertThat(captured.getCategory()).isEqualTo(category);
+        assertThat(captured.getUser()).isEqualTo(user);
+        assertThat(captured.getSlug()).isEqualTo("introduction-to-spring-boot");
+
+        verify(categoryRepository).findById(1L);
+        verify(securityUtils).getCurrentUser();
+        verify(slugUtils).generateUniqueSlug("Introduction to Spring Boot", null);
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when category does not exist on create")
+    void createPost_CategoryNotFound() {
+
+        // --- ARRANGE ---
+
+        // No SecurityContext setup needed — the service fetches category first.
+        // If that throws, resolveAuthenticatedUserId() is never reached.
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.empty());
+
+        // --- ACT & ASSERT ---
+        assertThatThrownBy(() -> postService.createPost(createRequest))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(categoryRepository).findById(1L);
+        verify(postRepository, never()).save(any(Post.class));
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when authenticated user does not exist in DB")
+    void createPost_UserNotFound() {
 
         // --- ARRANGE ---
         when(categoryRepository.findById(1L))
                 .thenReturn(Optional.of(category));
 
-        when(postRepository.save(any(Post.class)))
-                .thenReturn(savedPost);
-
-        // --- ACT ---
-        PostResponseDto result = postService.createPost(postDto);
-
-        // --- ASSERT ---
-
-        // Real ModelMapper ran — these values came from actual field mapping,
-        // not a stub. If the PropertyMap breaks, this assertion catches it.
-        assertThat(result).isNotNull();
-        assertThat(result.getId()).isEqualTo(1L);
-        assertThat(result.getTitle()).isEqualTo("Test Title");
-        assertThat(result.getDescription()).isEqualTo("Test Description");
-        assertThat(result.getContent()).isEqualTo("Test Content");
-        assertThat(result.getCategoryId()).isEqualTo(1L);
-
-        ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
-        verify(postRepository).save(captor.capture());
-        assertThat(captor.getValue().getCategory()).isEqualTo(category);
-
-        verify(categoryRepository).findById(1L);
-    }
-
-    @Test
-    @DisplayName("Should throw ResourceNotFoundException when category does not exist")
-    void createPost_CategoryNotFound() {
-
-        // --- ARRANGE ---
-        when(categoryRepository.findById(1L))
-                .thenReturn(Optional.empty());
+        // SecurityUtils encapsulates the DB lookup — it throws when the user
+        // referenced in the JWT no longer exists. The service never sees UserRepository.
+        when(securityUtils.getCurrentUser())
+                .thenThrow(new ResourceNotFoundException("User", "id", 10L));
 
         // --- ACT & ASSERT ---
-        assertThatThrownBy(() -> postService.createPost(postDto))
+        assertThatThrownBy(() -> postService.createPost(createRequest))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(categoryRepository).findById(1L);
+        verify(securityUtils).getCurrentUser();
         verify(postRepository, never()).save(any(Post.class));
     }
 
@@ -154,7 +203,8 @@ class PostServiceImplTest {
     // (pageNo, pageSize, sortBy, sortDir). Exact matching ensures all 4 are
     // correctly wired into PageRequest — using any(Pageable.class) would
     // silently pass even if the service hardcoded wrong values or ignored
-    // the sort direction entirely.
+    // the sort direction entirely. PostSummary is asserted on content
+    // because getAllPosts streams through mapToSummary, not mapToDto.
     // =====================================================================
 
     @Test
@@ -169,16 +219,17 @@ class PostServiceImplTest {
                 .thenReturn(postPage);
 
         // --- ACT ---
-        PostResponse result = postService.getAllPosts(0, 10, "title", "ASC");
+        PostPageResponse result = postService.getAllPosts(0, 10, "title", "ASC");
 
         // --- ASSERT ---
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().getFirst().getTitle()).isEqualTo("Test Title");
-        assertThat(result.getContent().getFirst().getCategoryId()).isEqualTo(1L);
+        assertThat(result.getContent().getFirst().getTitle()).isEqualTo("Introduction to Spring Boot");
+        assertThat(result.getContent().getFirst().getCategoryName()).isEqualTo("Technology");
+        assertThat(result.getContent().getFirst().getAuthorName()).isEqualTo("Abhishek Sharma");
         assertThat(result.getPageNo()).isEqualTo(0);
         assertThat(result.getPageSize()).isEqualTo(10);
-        assertThat(result.getTotalElement()).isEqualTo(1L);
+        assertThat(result.getTotalElements()).isEqualTo(1L);
         assertThat(result.getTotalPages()).isEqualTo(1);
         assertThat(result.isLast()).isTrue();
 
@@ -191,8 +242,8 @@ class PostServiceImplTest {
 
         // --- ARRANGE ---
 
-        // Descending sort — verifies the ternary branch in the service
-        // that switches between ascending() and descending() based on sortDir
+        // Descending branch — verifies the ternary in the service correctly
+        // switches between ascending() and descending() based on sortDir.
         Pageable expectedPageable = PageRequest.of(0, 5, Sort.by("title").descending());
         Page<Post> postPage = new PageImpl<>(List.of(savedPost), expectedPageable, 1);
 
@@ -200,53 +251,52 @@ class PostServiceImplTest {
                 .thenReturn(postPage);
 
         // --- ACT ---
-        PostResponse result = postService.getAllPosts(0, 5, "title", "DESC");
+        PostPageResponse result = postService.getAllPosts(0, 5, "title", "DESC");
 
         // --- ASSERT ---
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().getFirst().getTitle()).isEqualTo("Test Title");
+        assertThat(result.getContent().getFirst().getTitle()).isEqualTo("Introduction to Spring Boot");
 
         verify(postRepository).findAll(expectedPageable);
     }
 
     @Test
-    @DisplayName("Should return empty content when no posts exist")
+    @DisplayName("Should return empty content list when no posts exist")
     void getAllPosts_EmptyPage() {
 
         // --- ARRANGE ---
         Pageable expectedPageable = PageRequest.of(0, 10, Sort.by("title").ascending());
 
         // Empty page simulates a database with no posts —
-        // verifies that the service handles empty results and correctly identifies
-        // the page as the last one to prevent pagination logic errors.
+        // verifies the service handles zero-result pages gracefully and correctly
+        // flags isLast() as true to prevent the client from requesting page 1.
         Page<Post> emptyPage = new PageImpl<>(List.of(), expectedPageable, 0);
 
         when(postRepository.findAll(expectedPageable))
                 .thenReturn(emptyPage);
 
         // --- ACT ---
-        PostResponse result = postService.getAllPosts(0, 10, "title", "ASC");
+        PostPageResponse result = postService.getAllPosts(0, 10, "title", "ASC");
 
         // --- ASSERT ---
         assertThat(result).isNotNull();
         assertThat(result.getContent()).isEmpty();
-        assertThat(result.getTotalElement()).isEqualTo(0);
+        assertThat(result.getTotalElements()).isEqualTo(0);
         assertThat(result.isLast()).isTrue();
 
         verify(postRepository).findAll(expectedPageable);
     }
 
     @Test
-    @DisplayName("Should default to descending sort when sort direction is invalid")
+    @DisplayName("Should default to descending sort when sort direction is not ASC")
     void getAllPosts_InvalidSortDirection_DefaultsToDescending() {
 
         // --- ARRANGE ---
 
-        // The service ternary checks equalsIgnoreCase("ASC") — anything that
-        // isn't "ASC" silently falls through to descending(). This test
-        // documents that contract explicitly so a future refactor can't
-        // accidentally change the default without breaking a test.
+        // The service ternary checks equalsIgnoreCase("ASC") — anything else falls
+        // through to descending(). This test pins that contract explicitly so a
+        // future refactor can't silently change the default without a test failure.
         Pageable expectedPageable = PageRequest.of(0, 10, Sort.by("title").descending());
         Page<Post> postPage = new PageImpl<>(List.of(savedPost), expectedPageable, 1);
 
@@ -254,10 +304,9 @@ class PostServiceImplTest {
                 .thenReturn(postPage);
 
         // --- ACT ---
-        PostResponse result = postService.getAllPosts(0, 10, "title", "INVALID");
+        PostPageResponse result = postService.getAllPosts(0, 10, "title", "INVALID");
 
         // --- ASSERT ---
-        assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
 
         verify(postRepository).findAll(expectedPageable);
@@ -265,13 +314,13 @@ class PostServiceImplTest {
 
     // =====================================================================
     // getPostById — Exact Matching
-    // findById() takes a simple Long ID — exact matching confirms the
-    // service passed the correct ID. The not-found case verifies
-    // orElseThrow() fires before any mapping is attempted.
+    // findById() takes a simple Long — exact matching confirms the correct
+    // ID was passed. The not-found case verifies orElseThrow() fires before
+    // any mapping is attempted, so mapToDto() is never called on a null Post.
     // =====================================================================
 
     @Test
-    @DisplayName("Should return post when valid ID is provided")
+    @DisplayName("Should return full post detail when valid ID is provided")
     void getPostById_Success() {
 
         // --- ARRANGE ---
@@ -279,15 +328,15 @@ class PostServiceImplTest {
                 .thenReturn(Optional.of(savedPost));
 
         // --- ACT ---
-        PostResponseDto result = postService.getPostById(1L);
+        PostResponse result = postService.getPostById(1L);
 
         // --- ASSERT ---
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(1L);
-        assertThat(result.getTitle()).isEqualTo("Test Title");
-        assertThat(result.getDescription()).isEqualTo("Test Description");
-        assertThat(result.getContent()).isEqualTo("Test Content");
+        assertThat(result.getTitle()).isEqualTo("Introduction to Spring Boot");
         assertThat(result.getCategoryId()).isEqualTo(1L);
+        assertThat(result.getCategoryName()).isEqualTo("Technology");
+        assertThat(result.getAuthorName()).isEqualTo("Abhishek Sharma");
 
         verify(postRepository).findById(1L);
     }
@@ -308,88 +357,101 @@ class PostServiceImplTest {
     }
 
     // =====================================================================
-    // updatePost — ArgumentCaptor
-    // The service fetches an existing post then mutates MULTIPLE fields
-    // (title, description, content, category) before calling save().
-    // ArgumentCaptor intercepts the exact mutated Post object and lets us
-    // assert every field was correctly set — any(Post.class) would pass
-    // even if the service forgot to call setDescription(), and exact
-    // matching is impossible since the object is built and mutated entirely
-    // inside the service method itself.
+    // updatePost — ArgumentCaptor on save()
+    // The service fetches the post, fetches category, conditionally generates
+    // a new slug only when the title changed, then mutates multiple fields
+    // before save(). Two distinct paths exist: title-changed and title-unchanged.
+    // ArgumentCaptor asserts every mutated field — any(Post.class) would pass
+    // even if setDescription() or setCategory() was silently dropped.
+    // The slug assertion specifically verifies the conditional branch fires
+    // correctly in each path.
     // =====================================================================
 
     @Test
-    @DisplayName("Should successfully update post when post and category both exist")
-    void updatePost_Success() {
+    @DisplayName("Should update all fields and regenerate slug when title has changed")
+    void updatePost_Success_TitleChanged() {
 
         // --- ARRANGE ---
-        PostDto updatedPostDto = new PostDto();
-        updatedPostDto.setTitle("Updated Title");
-        updatedPostDto.setDescription("Updated Description");
-        updatedPostDto.setContent("Updated Content");
-        updatedPostDto.setCategoryId(1L);
-
-        Post updatedPost = new Post();
-        updatedPost.setId(1L);
-        updatedPost.setTitle("Updated Title");
-        updatedPost.setDescription("Updated Description");
-        updatedPost.setContent("Updated Content");
-        updatedPost.setCategory(category);
+        when(postRepository.findById(1L))
+                .thenReturn(Optional.of(savedPost));
 
         when(categoryRepository.findById(1L))
                 .thenReturn(Optional.of(category));
 
-        when(postRepository.findById(1L))
-                .thenReturn(Optional.of(savedPost));
+        // Title changed — service must call generateUniqueSlug with the new title
+        // and the existing post ID (excludePostId) so the slug uniqueness check
+        // doesn't consider the current post's own slug as a conflict.
+        when(slugUtils.generateUniqueSlug("Introduction to Spring Boot — Revised", 1L))
+                .thenReturn("introduction-to-spring-boot-revised");
+
+        Post updatedPost = new Post();
+        updatedPost.setId(1L);
+        updatedPost.setTitle("Introduction to Spring Boot — Revised");
+        updatedPost.setDescription("An updated deep dive into Spring Boot internals");
+        updatedPost.setContent("Spring Boot 3 requires Java 17 as a baseline...");
+        updatedPost.setSlug("introduction-to-spring-boot-revised");
+        updatedPost.setCategory(category);
+        updatedPost.setUser(user);
 
         when(postRepository.save(any(Post.class)))
                 .thenReturn(updatedPost);
 
         // --- ACT ---
-        PostResponseDto result = postService.updatePost(updatedPostDto, 1L);
+        PostResponse result = postService.updatePost(updateRequest, 1L);
 
         // --- ASSERT ---
-        assertThat(result).isNotNull();
-        assertThat(result.getTitle()).isEqualTo("Updated Title");
-        assertThat(result.getDescription()).isEqualTo("Updated Description");
-        assertThat(result.getContent()).isEqualTo("Updated Content");
-        assertThat(result.getCategoryId()).isEqualTo(1L);
+        assertThat(result.getTitle()).isEqualTo("Introduction to Spring Boot — Revised");
+        assertThat(result.getCategoryName()).isEqualTo("Technology");
+        assertThat(result.getAuthorName()).isEqualTo("Abhishek Sharma");
 
-        // Capture what was actually passed to save() and inspect every field —
-        // if the service forgot to call setDescription() or setCategory(),
-        // these assertions catch it
-        ArgumentCaptor<Post> postCaptor = ArgumentCaptor.forClass(Post.class);
-        verify(postRepository).save(postCaptor.capture());
-        Post capturedPost = postCaptor.getValue();
+        ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
+        verify(postRepository).save(captor.capture());
+        Post captured = captor.getValue();
+        assertThat(captured.getTitle()).isEqualTo("Introduction to Spring Boot — Revised");
+        assertThat(captured.getDescription()).isEqualTo("An updated deep dive into Spring Boot internals");
+        assertThat(captured.getContent()).isEqualTo("Spring Boot 3 requires Java 17 as a baseline...");
+        assertThat(captured.getSlug()).isEqualTo("introduction-to-spring-boot-revised");
+        assertThat(captured.getCategory()).isEqualTo(category);
 
-        assertThat(capturedPost.getTitle()).isEqualTo("Updated Title");
-        assertThat(capturedPost.getDescription()).isEqualTo("Updated Description");
-        assertThat(capturedPost.getContent()).isEqualTo("Updated Content");
-        assertThat(capturedPost.getCategory()).isEqualTo(category);
-
-        verify(categoryRepository).findById(1L);
-        verify(postRepository).findById(1L);
+        verify(slugUtils).generateUniqueSlug("Introduction to Spring Boot — Revised", 1L);
     }
 
     @Test
-    @DisplayName("Should throw ResourceNotFoundException when category does not exist during update")
-    void updatePost_CategoryNotFound() {
+    @DisplayName("Should update fields but not regenerate slug when title is unchanged")
+    void updatePost_Success_TitleUnchanged() {
 
         // --- ARRANGE ---
 
-        // Category not found — service should throw before even fetching the post
+        // Request title matches the existing post title exactly —
+        // the service must skip slug regeneration and leave the existing
+        // slug untouched. slugUtils must never be invoked.
+        PostUpdateRequest sameTitle = new PostUpdateRequest();
+        sameTitle.setTitle("Introduction to Spring Boot");     // same as savedPost.getTitle()
+        sameTitle.setDescription("Revised description only");
+        sameTitle.setContent("Spring Boot auto-configuration works by scanning the classpath...");
+        sameTitle.setCategoryId(1L);
+
+        when(postRepository.findById(1L))
+                .thenReturn(Optional.of(savedPost));
+
         when(categoryRepository.findById(1L))
-                .thenReturn(Optional.empty());
+                .thenReturn(Optional.of(category));
 
-        // --- ACT & ASSERT ---
-        assertThatThrownBy(() -> postService.updatePost(postDto, 1L))
-                .isInstanceOf(ResourceNotFoundException.class);
+        when(postRepository.save(any(Post.class)))
+                .thenReturn(savedPost);
 
-        verify(categoryRepository).findById(1L);
+        // --- ACT ---
+        postService.updatePost(sameTitle, 1L);
 
-        // Post fetch and save must never happen — category check comes first
-        verify(postRepository, never()).findById(anyLong());
-        verify(postRepository, never()).save(any(Post.class));
+        // --- ASSERT ---
+
+        // Most important assertion in this test — slug generation must be
+        // skipped entirely when the title hasn't changed.
+        verify(slugUtils, never()).generateUniqueSlug(anyString(), any());
+
+        ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
+        verify(postRepository).save(captor.capture());
+        assertThat(captor.getValue().getSlug()).isEqualTo("introduction-to-spring-boot");
     }
 
     @Test
@@ -398,28 +460,50 @@ class PostServiceImplTest {
 
         // --- ARRANGE ---
 
-        // Category exists but post doesn't — service should throw after
-        // the category check passes but before save() is called
-        when(categoryRepository.findById(1L))
-                .thenReturn(Optional.of(category));
-
+        // Post not found — service throws before the category lookup.
+        // The execution order in updatePost is: findById(post) first,
+        // then findById(category). This is the opposite of the old impl.
         when(postRepository.findById(99L))
                 .thenReturn(Optional.empty());
 
         // --- ACT & ASSERT ---
-        assertThatThrownBy(() -> postService.updatePost(postDto, 99L))
+        assertThatThrownBy(() -> postService.updatePost(updateRequest, 99L))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        verify(categoryRepository).findById(1L);
         verify(postRepository).findById(99L);
+        verify(categoryRepository, never()).findById(anyLong());
+        verify(postRepository, never()).save(any(Post.class));
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when category does not exist during update")
+    void updatePost_CategoryNotFound() {
+
+        // --- ARRANGE ---
+
+        // Post exists but category doesn't — service throws after the post fetch
+        // but before save(). Verifies orElseThrow() on the category lookup fires.
+        when(postRepository.findById(1L))
+                .thenReturn(Optional.of(savedPost));
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.empty());
+
+        // --- ACT & ASSERT ---
+        assertThatThrownBy(() -> postService.updatePost(updateRequest, 1L))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(postRepository).findById(1L);
+        verify(categoryRepository).findById(1L);
         verify(postRepository, never()).save(any(Post.class));
     }
 
     // =====================================================================
-    // deletePost — Exact Matching
-    // No mutation happens — service just fetches and deletes.
-    // Exact object match on delete() confirms the right post was removed,
-    // not just any Post that happened to pass through.
+    // deletePost — Exact Matching on deletePostById()
+    // The new impl uses a @Modifying JPQL query returning int instead of
+    // findById() + delete(entity). Return value of 0 means no row was deleted
+    // — service must throw ResourceNotFoundException in that case.
+    // No ArgumentCaptor needed — the only input is the Long ID.
     // =====================================================================
 
     @Test
@@ -427,15 +511,22 @@ class PostServiceImplTest {
     void deletePost_Success() {
 
         // --- ARRANGE ---
-        when(postRepository.findById(1L))
-                .thenReturn(Optional.of(savedPost));
+
+        // deletePostById returns 1 — exactly one row was deleted.
+        // Service must return without throwing.
+        when(postRepository.deletePostById(1L))
+                .thenReturn(1);
 
         // --- ACT ---
         postService.deletePost(1L);
 
         // --- ASSERT ---
-        verify(postRepository).findById(1L);
-        verify(postRepository).delete(savedPost);
+        verify(postRepository).deletePostById(1L);
+
+        // Confirms the old findById + delete(entity) path is gone —
+        // no SELECT should precede the DELETE in this implementation.
+        verify(postRepository, never()).findById(anyLong());
+        verify(postRepository, never()).delete(any(Post.class));
     }
 
     @Test
@@ -443,30 +534,31 @@ class PostServiceImplTest {
     void deletePost_NotFound() {
 
         // --- ARRANGE ---
-        when(postRepository.findById(99L))
-                .thenReturn(Optional.empty());
+
+        // deletePostById returns 0 — no row matched the ID.
+        // Service must detect this and throw rather than silently succeeding.
+        when(postRepository.deletePostById(99L))
+                .thenReturn(0);
 
         // --- ACT & ASSERT ---
         assertThatThrownBy(() -> postService.deletePost(99L))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        verify(postRepository).findById(99L);
-
-        // Most critical assertion for delete — nothing must be deleted
-        // when the post doesn't exist
+        verify(postRepository).deletePostById(99L);
         verify(postRepository, never()).delete(any(Post.class));
     }
 
     // =====================================================================
     // getPostsByCategory — Exact Matching
-    // findByCategoryId() takes a simple Long ID — exact matching confirms
-    // the service passed the correct categoryId. The empty list scenario
-    // verifies the method returns silently rather than throwing — a category
-    // with no posts is valid state, not an error.
+    // Returns List<PostSummary> not List<PostResponse> — the mapping
+    // goes through mapToSummary which uses the Post→PostSummary
+    // PropertyMap. Asserting categoryName and authorName on the summary
+    // confirms the correct PropertyMap ran, not the response one.
+    // Empty list is valid state — a category with no posts should never throw.
     // =====================================================================
 
     @Test
-    @DisplayName("Should return mapped list of posts when valid category ID is provided")
+    @DisplayName("Should return mapped PostSummary list when valid category ID is provided")
     void getPostsByCategory_Success() {
 
         // --- ARRANGE ---
@@ -474,37 +566,81 @@ class PostServiceImplTest {
                 .thenReturn(List.of(savedPost));
 
         // --- ACT ---
-        List<PostResponseDto> result = postService.getPostsByCategory(1L);
+        List<PostSummary> result = postService.getPostsByCategory(1L);
 
         // --- ASSERT ---
         assertThat(result).isNotNull().hasSize(1);
         assertThat(result.getFirst().getId()).isEqualTo(1L);
-        assertThat(result.getFirst().getTitle()).isEqualTo("Test Title");
-        assertThat(result.getFirst().getDescription()).isEqualTo("Test Description");
-        assertThat(result.getFirst().getContent()).isEqualTo("Test Content");
-        assertThat(result.getFirst().getCategoryId()).isEqualTo(1L);
+        assertThat(result.getFirst().getTitle()).isEqualTo("Introduction to Spring Boot");
+        assertThat(result.getFirst().getSlug()).isEqualTo("introduction-to-spring-boot");
+        assertThat(result.getFirst().getCategoryName()).isEqualTo("Technology");
+        assertThat(result.getFirst().getAuthorName()).isEqualTo("Abhishek Sharma");
 
         verify(postRepository).findByCategoryId(1L);
     }
 
     @Test
-    @DisplayName("Should return empty list when no posts exist for given category ID")
+    @DisplayName("Should return empty list when no posts exist for the given category ID")
     void getPostsByCategory_EmptyList() {
 
         // --- ARRANGE ---
 
-        // Empty list simulates either a valid categoryId with no associated posts
-        // OR an invalid categoryId entirely — this method treats both identically
-        // by design, returning an empty list rather than throwing an exception
+        // Empty list simulates a valid category with no posts yet —
+        // treated identically to an unknown categoryId by design.
+        // Service must return an empty list, not throw.
         when(postRepository.findByCategoryId(99L))
                 .thenReturn(List.of());
 
         // --- ACT ---
-        List<PostResponseDto> result = postService.getPostsByCategory(99L);
+        List<PostSummary> result = postService.getPostsByCategory(99L);
 
         // --- ASSERT ---
         assertThat(result).isNotNull().isEmpty();
 
         verify(postRepository).findByCategoryId(99L);
+    }
+
+    // =====================================================================
+    // getPostBySlug — Exact Matching
+    // findBySlug() takes a String slug — exact matching confirms the correct
+    // slug was passed through. Not-found verifies orElseThrow() fires before
+    // any mapping is attempted.
+    // =====================================================================
+
+    @Test
+    @DisplayName("Should return full post detail when valid slug is provided")
+    void getPostBySlug_Success() {
+
+        // --- ARRANGE ---
+        when(postRepository.findBySlug("introduction-to-spring-boot"))
+                .thenReturn(Optional.of(savedPost));
+
+        // --- ACT ---
+        PostResponse result = postService.getPostBySlug("introduction-to-spring-boot");
+
+        // --- ASSERT ---
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getTitle()).isEqualTo("Introduction to Spring Boot");
+        assertThat(result.getSlug()).isEqualTo("introduction-to-spring-boot");
+        assertThat(result.getCategoryName()).isEqualTo("Technology");
+        assertThat(result.getAuthorName()).isEqualTo("Abhishek Sharma");
+
+        verify(postRepository).findBySlug("introduction-to-spring-boot");
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when slug does not exist")
+    void getPostBySlug_NotFound() {
+
+        // --- ARRANGE ---
+        when(postRepository.findBySlug("non-existent-slug"))
+                .thenReturn(Optional.empty());
+
+        // --- ACT & ASSERT ---
+        assertThatThrownBy(() -> postService.getPostBySlug("non-existent-slug"))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(postRepository).findBySlug("non-existent-slug");
     }
 }
