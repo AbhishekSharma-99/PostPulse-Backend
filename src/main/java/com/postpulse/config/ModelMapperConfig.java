@@ -1,7 +1,8 @@
 package com.postpulse.config;
 
 import com.postpulse.entity.Post;
-import com.postpulse.payload.PostResponseDto;
+import com.postpulse.payload.post.PostResponse;
+import com.postpulse.payload.post.PostSummary;
 import org.modelmapper.ModelMapper;
 import org.modelmapper.PropertyMap;
 import org.modelmapper.convention.MatchingStrategies;
@@ -19,16 +20,42 @@ public class ModelMapperConfig {
         modelMapper.getConfiguration()
                 .setMatchingStrategy(MatchingStrategies.STANDARD);
 
-        modelMapper.addMappings(new PropertyMap<Post, PostResponseDto>() {
+        // Post → PostResponse
+        modelMapper.addMappings(new PropertyMap<Post, PostResponse>() {
             @Override
             protected void configure() {
 
                 using(ctx -> {
-                    Post source = (Post) ctx.getSource();
-                    return source.getCategory() != null
-                            ? source.getCategory().getId()
-                            : null;
-                }).map(source).setCategoryId(0L);
+                    Post src = (Post) ctx.getSource();
+                    return src.getCategory() != null ? src.getCategory().getId() : null;
+                }).map(source).setCategoryId(null);
+
+                using(ctx -> {
+                    Post src = (Post) ctx.getSource();
+                    return src.getCategory() != null ? src.getCategory().getName() : null;
+                }).map(source).setCategoryName(null);
+
+                using(ctx -> {
+                    Post src = (Post) ctx.getSource();
+                    return src.getUser() != null ? src.getUser().getName() : null;
+                }).map(source).setAuthorName(null);
+            }
+        });
+
+        // Post → PostSummary
+        modelMapper.addMappings(new PropertyMap<Post, PostSummary>() {
+            @Override
+            protected void configure() {
+
+                using(ctx -> {
+                    Post src = (Post) ctx.getSource();
+                    return src.getCategory() != null ? src.getCategory().getName() : null;
+                }).map(source).setCategoryName(null);
+
+                using(ctx -> {
+                    Post src = (Post) ctx.getSource();
+                    return src.getUser() != null ? src.getUser().getName() : null;
+                }).map(source).setAuthorName(null);
             }
         });
 
