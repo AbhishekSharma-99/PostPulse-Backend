@@ -1,6 +1,6 @@
-package com.postpulse.payload;
+package com.postpulse.payload.auth;
 
-public record RegisterResponseDto(
+public record RegisterResponse(
         Long id,
         String username,
         String email,

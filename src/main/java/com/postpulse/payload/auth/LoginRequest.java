@@ -1,4 +1,4 @@
-package com.postpulse.payload;
+package com.postpulse.payload.auth;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -11,8 +11,8 @@ import lombok.Setter;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "LoginDto Model Information")
-public class LoginDto {
+@Schema(description = "Login request model information")
+public class LoginRequest {
 
     @Schema(description = "Username or Email")
     @NotBlank(message = "Username or email is required")

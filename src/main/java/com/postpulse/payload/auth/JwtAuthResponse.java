@@ -1,4 +1,4 @@
-package com.postpulse.payload;
+package com.postpulse.payload.auth;
 
 
 import io.swagger.v3.oas.annotations.media.Schema;

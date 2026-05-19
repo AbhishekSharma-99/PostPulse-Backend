@@ -1,4 +1,4 @@
-package com.postpulse.payload;
+package com.postpulse.payload.auth;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
@@ -13,8 +13,8 @@ import lombok.Setter;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "RegisterDto Model Information")
-public class RegisterDto {
+@Schema(description = "Register request model information")
+public class RegisterRequest {
 
     @Schema(description = "Full name")
     @NotBlank(message = "Name is required")

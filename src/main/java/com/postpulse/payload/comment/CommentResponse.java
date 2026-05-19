@@ -1,4 +1,4 @@
-package com.postpulse.payload;
+package com.postpulse.payload.comment;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
@@ -12,14 +12,17 @@ import lombok.Setter;
 public class CommentResponse {
 
     @Schema(description = "Server-assigned comment ID")
-    private long id;
-
-    @Schema(description = "Display name of the commenter")
-    private String name;
-
-    @Schema(description = "Email address of the commenter")
-    private String email;
+    private Long id;
 
     @Schema(description = "Comment body text")
     private String body;
+
+    @Schema(description = "Username of the commenter")
+    private String userName;
+
+    @Schema(description = "Id of the user who made the comment")
+    private Long userId;
+
+    @Schema(description = "Id of the post to which the comment belongs")
+    private Long postId;
 }
