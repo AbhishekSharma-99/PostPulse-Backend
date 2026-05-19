@@ -1,9 +1,10 @@
 package com.postpulse.service.impl;
 
 import com.postpulse.entity.Category;
+import com.postpulse.exception.BlogAPIException;
 import com.postpulse.exception.ResourceNotFoundException;
-import com.postpulse.payload.CategoryRequest;
-import com.postpulse.payload.CategoryResponse;
+import com.postpulse.payload.category.CategoryRequest;
+import com.postpulse.payload.category.CategoryResponse;
 import com.postpulse.repository.CategoryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -15,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -60,24 +62,25 @@ class CategoryServiceImplTest {
     }
 
     // =====================================================================
-    // addCategory — Real ModelMapper, output assertions only
-    // The service maps CategoryRequest -> Category via ModelMapper, then
-    // immediately persists. No mutation occurs between mapping and save(),
-    // so ArgumentCaptor adds no value here — the real @Spy ModelMapper
-    // already proves the end-to-end mapping is correct through output
-    // field assertions on the returned CategoryResponse.
+    // createCategory — Real ModelMapper, output assertions only
+    // The service validates uniqueness, maps CategoryRequest -> Category via
+    // ModelMapper, then immediately persists. ArgumentCaptor adds no value
+    // here — the real @Spy ModelMapper already proves the end-to-end mapping
+    // is correct through field assertions on the returned CategoryResponse.
     // =====================================================================
 
     @Test
     @DisplayName("Should successfully create a category and return persisted response")
-    void addCategory_Success() {
+    void createCategory_Success() {
 
         // --- ARRANGE ---
+        when(categoryRepository.existsByName("Technology"))
+                .thenReturn(false);
         when(categoryRepository.save(any(Category.class)))
                 .thenReturn(savedCategory);
 
         // --- ACT ---
-        CategoryResponse result = categoryService.addCategory(categoryRequest);
+        CategoryResponse result = categoryService.createCategory(categoryRequest);
 
         // --- ASSERT ---
 
@@ -89,7 +92,29 @@ class CategoryServiceImplTest {
         assertThat(result.getName()).isEqualTo("Technology");
         assertThat(result.getDescription()).isEqualTo("Posts about tech, software, and engineering.");
 
+        verify(categoryRepository).existsByName("Technology");
         verify(categoryRepository).save(any(Category.class));
+    }
+
+    @Test
+    @DisplayName("Should throw BlogAPIException with CONFLICT status when category name already exists on create")
+    void createCategory_DuplicateName_ThrowsBlogAPIException() {
+
+        // --- ARRANGE ---
+
+        // Duplicate name detected before any persistence attempt —
+        // save() must never be reached
+        when(categoryRepository.existsByName("Technology"))
+                .thenReturn(true);
+
+        // --- ACT & ASSERT ---
+        assertThatThrownBy(() -> categoryService.createCategory(categoryRequest))
+                .isInstanceOf(BlogAPIException.class)
+                .extracting(ex -> ((BlogAPIException) ex).getHttpStatus())
+                .isEqualTo(HttpStatus.CONFLICT);
+
+        verify(categoryRepository).existsByName("Technology");
+        verify(categoryRepository, never()).save(any(Category.class));
     }
 
     // =====================================================================
@@ -195,15 +220,18 @@ class CategoryServiceImplTest {
 
     // =====================================================================
     // updateCategory — ArgumentCaptor on save()
-    // The service fetches an existing Category then mutates name, description,
-    // and id on the same managed object before calling save(). ArgumentCaptor
-    // intercepts the exact mutated entity so we can assert every field was
-    // correctly assigned — any(Category.class) would silently pass even if
-    // setDescription() or setId() were never called.
+    // The service fetches an existing Category, mutates name and description
+    // on the managed object, then calls save(). ArgumentCaptor intercepts
+    // the exact mutated entity so we can assert every assigned field —
+    // any(Category.class) would silently pass even if setDescription() was
+    // never called or null was passed through incorrectly.
+    //
+    // A dedicated null-description test covers the PUT contract: omitting
+    // description must clear the existing value, not preserve it.
     // =====================================================================
 
     @Test
-    @DisplayName("Should successfully update category and return mapped response")
+    @DisplayName("Should successfully update category name and description, return mapped response")
     void updateCategory_Success() {
 
         // --- ARRANGE ---
@@ -218,7 +246,8 @@ class CategoryServiceImplTest {
 
         when(categoryRepository.findById(1L))
                 .thenReturn(Optional.of(savedCategory));
-
+        when(categoryRepository.existsByNameAndIdNot("Software Engineering", 1L))
+                .thenReturn(false);
         when(categoryRepository.save(any(Category.class)))
                 .thenReturn(updatedCategory);
 
@@ -232,8 +261,8 @@ class CategoryServiceImplTest {
         assertThat(result.getDescription()).isEqualTo("Deep dives into system design and architecture.");
 
         // Capture the mutated entity passed to save() — confirms the service
-        // called setName(), setDescription(), and setId() on the fetched object
-        // before persisting. Any omission here would fail these assertions.
+        // called setName() and setDescription() on the fetched object before
+        // persisting. Any omission here would fail these assertions.
         ArgumentCaptor<Category> captor = ArgumentCaptor.forClass(Category.class);
         verify(categoryRepository).save(captor.capture());
         Category capturedCategory = captor.getValue();
@@ -243,6 +272,48 @@ class CategoryServiceImplTest {
         assertThat(capturedCategory.getDescription()).isEqualTo("Deep dives into system design and architecture.");
 
         verify(categoryRepository).findById(1L);
+        verify(categoryRepository).existsByNameAndIdNot("Software Engineering", 1L);
+    }
+
+    @Test
+    @DisplayName("Should clear description when update request omits description (PUT semantics)")
+    void updateCategory_NullDescription_ClearsExistingDescription() {
+
+        // --- ARRANGE ---
+
+        // Client sends a PUT with no description — this is a valid full
+        // replacement. The existing description must be overwritten with null,
+        // not silently preserved. Any PATCH-style "keep if null" logic here
+        // would be a contract violation.
+        CategoryRequest updateRequest = new CategoryRequest();
+        updateRequest.setName("Technology");
+        updateRequest.setDescription(null);
+
+        Category updatedCategory = new Category();
+        updatedCategory.setId(1L);
+        updatedCategory.setName("Technology");
+        updatedCategory.setDescription(null);
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(savedCategory));
+        when(categoryRepository.existsByNameAndIdNot("Technology", 1L))
+                .thenReturn(false);
+        when(categoryRepository.save(any(Category.class)))
+                .thenReturn(updatedCategory);
+
+        // --- ACT ---
+        CategoryResponse result = categoryService.updateCategory(1L, updateRequest);
+
+        // --- ASSERT ---
+        assertThat(result).isNotNull();
+        assertThat(result.getDescription()).isNull();
+
+        // ArgumentCaptor confirms null was passed to setDescription() on the entity,
+        // not that the field was simply left untouched from the original value
+        ArgumentCaptor<Category> captor = ArgumentCaptor.forClass(Category.class);
+        verify(categoryRepository).save(captor.capture());
+
+        assertThat(captor.getValue().getDescription()).isNull();
     }
 
     @Test
@@ -251,7 +322,8 @@ class CategoryServiceImplTest {
 
         // --- ARRANGE ---
 
-        // Category not found — service must throw before save() is ever called
+        // Category not found — service must throw before uniqueness check
+        // or save() is ever called
         when(categoryRepository.findById(99L))
                 .thenReturn(Optional.empty());
 
@@ -260,8 +332,35 @@ class CategoryServiceImplTest {
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(categoryRepository).findById(99L);
+        verify(categoryRepository, never()).existsByNameAndIdNot(any(), any());
+        verify(categoryRepository, never()).save(any(Category.class));
+    }
 
-        // save() must never be called — no entity to update
+    @Test
+    @DisplayName("Should throw BlogAPIException with CONFLICT status when updated name belongs to another category")
+    void updateCategory_DuplicateName_ThrowsBlogAPIException() {
+
+        // --- ARRANGE ---
+
+        // "Technology" already exists on a different category (id != 1L).
+        // The service must reject the update before save() is called.
+        CategoryRequest updateRequest = new CategoryRequest();
+        updateRequest.setName("Technology");
+        updateRequest.setDescription("Updated description.");
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(savedCategory));
+        when(categoryRepository.existsByNameAndIdNot("Technology", 1L))
+                .thenReturn(true);
+
+        // --- ACT & ASSERT ---
+        assertThatThrownBy(() -> categoryService.updateCategory(1L, updateRequest))
+                .isInstanceOf(BlogAPIException.class)
+                .extracting(ex -> ((BlogAPIException) ex).getHttpStatus())
+                .isEqualTo(HttpStatus.CONFLICT);
+
+        verify(categoryRepository).findById(1L);
+        verify(categoryRepository).existsByNameAndIdNot("Technology", 1L);
         verify(categoryRepository, never()).save(any(Category.class));
     }
 
