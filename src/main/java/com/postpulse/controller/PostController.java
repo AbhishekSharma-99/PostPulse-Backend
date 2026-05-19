@@ -1,9 +1,7 @@
 package com.postpulse.controller;
 
 import com.postpulse.annotation.CommonApiResponses;
-import com.postpulse.payload.PostDto;
-import com.postpulse.payload.PostResponse;
-import com.postpulse.payload.PostResponseDto;
+import com.postpulse.payload.post.*;
 import com.postpulse.service.PostService;
 import com.postpulse.utils.AppConstants;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,14 +37,14 @@ public class PostController {
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
-    public ResponseEntity<PostResponseDto> createPost(@Valid @RequestBody PostDto postDto) {
-        return new ResponseEntity<>(postService.createPost(postDto), HttpStatus.CREATED);
+    public ResponseEntity<PostResponse> createPost(@Valid @RequestBody PostCreateRequest postCreateRequest) {
+        return new ResponseEntity<>(postService.createPost(postCreateRequest), HttpStatus.CREATED);
     }
 
     @Operation(summary = "Get all posts", description = "Retrieve all posts with pagination and sorting.")
     @ApiResponse(responseCode = "200", description = "Posts retrieved successfully")
     @GetMapping
-    public ResponseEntity<PostResponse> getAllPosts(
+    public ResponseEntity<PostPageResponse> getAllPosts(
             @RequestParam(defaultValue = AppConstants.DEFAULT_PAGE_NUMBER, required = false) int pageNo,
             @RequestParam(defaultValue = AppConstants.DEFAULT_PAGE_SIZE, required = false) int pageSize,
             @RequestParam(defaultValue = AppConstants.DEFAULT_SORT_BY, required = false) String sortBy,
@@ -57,7 +55,7 @@ public class PostController {
     @Operation(summary = "Get post by ID", description = "Retrieve a specific post by its ID.")
     @ApiResponse(responseCode = "200", description = "Post retrieved successfully")
     @GetMapping("/{id}")
-    public ResponseEntity<PostResponseDto> getPostById( @PathVariable @NotNull @Positive Long id) {
+    public ResponseEntity<PostResponse> getPostById( @PathVariable @NotNull @Positive Long id) {
         return ResponseEntity.ok(postService.getPostById(id));
     }
 
@@ -66,10 +64,10 @@ public class PostController {
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
-    public ResponseEntity<PostResponseDto> updatePost(
-            @Valid @RequestBody PostDto postDto,
+    public ResponseEntity<PostResponse> updatePost(
+            @Valid @RequestBody PostUpdateRequest postUpdateRequest,
             @PathVariable @NotNull @Positive Long id) {
-        return ResponseEntity.ok(postService.updatePost(postDto, id));
+        return ResponseEntity.ok(postService.updatePost(postUpdateRequest, id));
     }
 
     @Operation(summary = "Delete post by ID", description = "Delete a specific post by ID. ADMIN only.")
@@ -85,7 +83,14 @@ public class PostController {
     @Operation(summary = "Get posts by category", description = "Retrieve all posts belonging to a specific category.")
     @ApiResponse(responseCode = "200", description = "Posts retrieved successfully")
     @GetMapping("/category/{categoryId}")
-    public ResponseEntity<List<PostResponseDto>> getPostsByCategory( @PathVariable @NotNull @Positive Long categoryId) {
+    public ResponseEntity<List<PostSummary>> getPostsByCategory(@PathVariable @NotNull @Positive Long categoryId) {
         return ResponseEntity.ok(postService.getPostsByCategory(categoryId));
+    }
+
+    @Operation(summary = "Get post by slug", description = "Retrieve a specific post using its URL slug.")
+    @ApiResponse(responseCode = "200", description = "Post retrieved successfully")
+    @GetMapping("/slug/{slug}")
+    public ResponseEntity<PostResponse> getPostBySlug(@PathVariable String slug) {
+        return ResponseEntity.ok(postService.getPostBySlug(slug));
     }
 }

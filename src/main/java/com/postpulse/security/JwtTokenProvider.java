@@ -19,11 +19,11 @@ import java.util.Date;
 public class JwtTokenProvider {
 
     private final String jwtSecret;
-    private final long jwtExpirationDate;
+    private final Long jwtExpirationDate;
 
     public JwtTokenProvider(
             @Value("${app.jwt-secret}") String jwtSecret,
-            @Value("${app.jwt-expiration-milliseconds}") long jwtExpirationDate) {
+            @Value("${app.jwt-expiration-milliseconds}") Long jwtExpirationDate) {
         this.jwtSecret = jwtSecret;
         this.jwtExpirationDate = jwtExpirationDate;
     }
