@@ -167,6 +167,9 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <excludes>com/postpulse/seeder/**/*</excludes>
+                </configuration>
             </plugin>
         </plugins>
     </build>
