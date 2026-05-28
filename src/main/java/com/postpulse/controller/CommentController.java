@@ -21,7 +21,7 @@ import java.util.List;
 
 @Validated
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/posts")
 @Tag(name = "Comment API", description = "CRUD REST APIs for Comment Resource")
 @CommonApiResponses
 public class CommentController {
@@ -36,7 +36,7 @@ public class CommentController {
     @ApiResponse(responseCode = "201", description = "Comment created successfully")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
-    @PostMapping("/posts/{postId}/comments")
+    @PostMapping("/{postId}/comments")
     public ResponseEntity<CommentResponse> createComment(
             @PathVariable @NotNull @Positive Long postId,
             @Valid @RequestBody CommentRequest commentRequest) {
@@ -45,14 +45,14 @@ public class CommentController {
 
     @Operation(summary = "Get all comments", description = "Get all comments for a specific post.")
     @ApiResponse(responseCode = "200", description = "Comments retrieved successfully")
-    @GetMapping("/posts/{postId}/comments")
+    @GetMapping("/{postId}/comments")
     public ResponseEntity<List<CommentResponse>> getCommentsByPostId(@PathVariable @NotNull @Positive Long postId) {
         return ResponseEntity.ok(commentService.getCommentsByPostId(postId));
     }
 
     @Operation(summary = "Get comment by ID", description = "Get a specific comment by ID.")
     @ApiResponse(responseCode = "200", description = "Comment retrieved successfully")
-    @GetMapping("/posts/{postId}/comments/{commentId}")
+    @GetMapping("/{postId}/comments/{commentId}")
     public ResponseEntity<CommentResponse> getCommentById(
             @PathVariable @NotNull @Positive Long postId,
             @PathVariable @NotNull @Positive Long commentId) {
@@ -62,8 +62,8 @@ public class CommentController {
     @Operation(summary = "Update a comment", description = "Update a specific comment by ID.")
     @ApiResponse(responseCode = "200", description = "Comment updated successfully")
     @SecurityRequirement(name = "bearerAuth")
-    @PreAuthorize("hasRole('ADMIN') or isAuthenticated()")
-    @PutMapping("/posts/{postId}/comments/{commentId}")
+    @PreAuthorize("isAuthenticated()")
+    @PutMapping("/{postId}/comments/{commentId}")
     public ResponseEntity<CommentResponse> updateCommentById(
             @PathVariable @NotNull @Positive Long postId,
             @PathVariable @NotNull @Positive Long commentId,
@@ -74,8 +74,8 @@ public class CommentController {
     @Operation(summary = "Delete a comment", description = "Delete a specific comment by ID.")
     @ApiResponse(responseCode = "204", description = "Comment deleted successfully")
     @SecurityRequirement(name = "bearerAuth")
-    @PreAuthorize("hasRole('ADMIN') or isAuthenticated()")
-    @DeleteMapping("/posts/{postId}/comments/{commentId}")
+    @PreAuthorize("isAuthenticated()")
+    @DeleteMapping("/{postId}/comments/{commentId}")
     public ResponseEntity<Void> deleteCommentById(
             @PathVariable @NotNull @Positive Long postId,
             @PathVariable @NotNull @Positive Long commentId) {

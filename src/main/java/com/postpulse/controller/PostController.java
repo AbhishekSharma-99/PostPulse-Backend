@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
@@ -90,7 +91,7 @@ public class PostController {
     @Operation(summary = "Get post by slug", description = "Retrieve a specific post using its URL slug.")
     @ApiResponse(responseCode = "200", description = "Post retrieved successfully")
     @GetMapping("/slug/{slug}")
-    public ResponseEntity<PostResponse> getPostBySlug(@PathVariable String slug) {
+    public ResponseEntity<PostResponse> getPostBySlug(@PathVariable @NotBlank String slug) {
         return ResponseEntity.ok(postService.getPostBySlug(slug));
     }
 }
