@@ -5,15 +5,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 // @DataJpaTest spins up an H2 in-memory database, configures Spring Data JPA,
 // and rolls back every test in a transaction — no state leaks between tests.
 // Only the JPA slice is loaded; the full ApplicationContext is never started.
-@DataJpaTest
-class CategoryRepositoryTest {
+
+class CategoryRepositoryTest extends BaseRepositoryTest {
 
     @Autowired
     private CategoryRepository categoryRepository;
