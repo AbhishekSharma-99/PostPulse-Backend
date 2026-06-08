@@ -10,7 +10,7 @@ Every error response carries the `Content-Type: application/problem+json` header
 
 ```json
 {
-  "type": "https://github.com/your-username/postpulse-backend/blob/main/docs/errors.md#resource-not-found",
+  "type": "https://github.com/AbhishekSharma-99/PostPulse-Backend/blob/main/docs/Errors.md#resource-not-found",
   "title": "Resource Not Found",
   "status": 404,
   "detail": "Post with ID 42 does not exist.",
@@ -19,30 +19,32 @@ Every error response carries the `Content-Type: application/problem+json` header
 }
 ```
 
-| Field       | Type             | Always Present | Description                                                                 |
-|-------------|------------------|----------------|-----------------------------------------------------------------------------|
-| `type`      | `string` (URI)   | ✅              | URI pointing to documentation for this specific problem type (this page).   |
-| `title`     | `string`         | ✅              | Short, human-readable summary of the problem type.                          |
-| `status`    | `integer`        | ✅              | HTTP status code.                                                           |
-| `detail`    | `string`         | ✅              | Human-readable explanation specific to this occurrence.                     |
-| `instance`  | `string` (URI)   | ✅              | The request path that triggered this error.                                 |
-| `timestamp` | `string` (ISO 8601) | ✅           | UTC timestamp of when the error occurred.                                   |
-| `errors`    | `object`         | ❌              | Field-level validation errors. Present **only** on `400 Validation Failed`. |
+| Field       | Type                | Always Present | Description                                                                 |
+|-------------|---------------------|----------------|-----------------------------------------------------------------------------|
+| `type`      | `string` (URI)      | ✅              | URI pointing to documentation for this specific problem type (this page).   |
+| `title`     | `string`            | ✅              | Short, human-readable summary of the problem type.                          |
+| `status`    | `integer`           | ✅              | HTTP status code.                                                           |
+| `detail`    | `string`            | ✅              | Human-readable explanation specific to this occurrence.                     |
+| `instance`  | `string` (URI)      | ✅              | The request path that triggered this error.                                 |
+| `timestamp` | `string` (ISO 8601) | ✅              | UTC timestamp of when the error occurred.                                   |
+| `errors`    | `object`            | ❌              | Field-level validation errors. Present **only** on `400 Validation Failed`. |
 
 ---
 
 ## Error Type Index
 
-| Error Type Anchor                                   | HTTP Status | Title                  |
-|-----------------------------------------------------|-------------|------------------------|
-| [#resource-not-found](#resource-not-found)          | `404`       | Resource Not Found     |
-| [#api-error](#api-error)                            | `4xx`       | API Error              |
-| [#validation-failed](#validation-failed)            | `400`       | Validation Failed      |
-| [#constraint-violation](#constraint-violation)      | `400`       | Constraint Violation   |
-| [#type-mismatch](#type-mismatch)                    | `400`       | Type Mismatch          |
-| [#access-denied](#access-denied)                    | `403`       | Access Denied          |
-| [#unauthorized](#unauthorized)                      | `401`       | Unauthorized           |
-| [#internal-error](#internal-error)                  | `500`       | Internal Server Error  |
+| Error Type Anchor                               | HTTP Status | Title                 |
+|-------------------------------------------------|-------------|-----------------------|
+| [#resource-not-found](#resource-not-found)      | `404`       | Resource Not Found    |
+| [#validation-failed](#validation-failed)        | `400`       | Validation Failed     |
+| [#constraint-violation](#constraint-violation)  | `400`       | Constraint Violation  |
+| [#type-mismatch](#type-mismatch)                | `400`       | Type Mismatch         |
+| [#unauthorized](#unauthorized)                  | `401`       | Unauthorized          |
+| [#access-denied](#access-denied)                | `403`       | Access Denied         |
+| [#conflict](#conflict)                          | `409`       | Conflict              |
+| [#api-error](#api-error)                        | `4xx`       | API Error             |
+| [#internal-error](#internal-error)              | `500`       | Internal Server Error |
+
 
 ---
 
@@ -66,7 +68,7 @@ A requested resource — such as a Post, Category, or User — does not exist in
 
 ```json
 {
-  "type": "https://github.com/your-username/postpulse-backend/blob/main/docs/errors.md#resource-not-found",
+  "type": "https://github.com/AbhishekSharma-99/PostPulse-Backend/blob/main/docs/Errors.md#resource-not-found",
   "title": "Resource Not Found",
   "status": 404,
   "detail": "Post not found with id: 999",
@@ -76,31 +78,6 @@ A requested resource — such as a Post, Category, or User — does not exist in
 ```
 
 **Client action:** Do not retry. Verify the resource ID before making the request.
-
----
-
-### `#api-error`
-
-**Title:** API Error
-**HTTP Status:** `4xx` (varies — always inspect the `status` field)
-
-**When it occurs:**
-A domain-level rule was violated. This is a general-purpose error for business logic violations that do not fit a more specific category — for example, attempting to perform an action that conflicts with current system state (e.g., a user attempting to delete another user's post).
-
-**Example response:**
-
-```json
-{
-  "type": "https://github.com/your-username/postpulse-backend/blob/main/docs/errors.md#api-error",
-  "title": "API Error",
-  "status": 400,
-  "detail": "You can only update your own posts.",
-  "instance": "/api/v1/posts/12",
-  "timestamp": "2025-01-15T10:31:00Z"
-}
-```
-
-**Client action:** Read the `detail` field for a specific, human-readable reason. The `status` field determines the appropriate retry/escalation strategy.
 
 ---
 
@@ -118,7 +95,7 @@ This is the **only** error type that includes the `errors` extension field, whic
 
 ```json
 {
-  "type": "https://github.com/your-username/postpulse-backend/blob/main/docs/errors.md#validation-failed",
+  "type": "https://github.com/AbhishekSharma-99/PostPulse-Backend/blob/main/docs/Errors.md#validation-failed",
   "title": "Validation Failed",
   "status": 400,
   "detail": "One or more fields failed validation.",
@@ -154,7 +131,7 @@ Unlike `#validation-failed`, this occurs at the **parameter level** rather than 
 
 ```json
 {
-  "type": "https://github.com/your-username/postpulse-backend/blob/main/docs/errors.md#constraint-violation",
+  "type": "https://github.com/AbhishekSharma-99/PostPulse-Backend/blob/main/docs/Errors.md#constraint-violation",
   "title": "Constraint Violation",
   "status": 400,
   "detail": "id: must be greater than 0",
@@ -183,7 +160,7 @@ A path variable or request parameter could not be converted to its expected Java
 
 ```json
 {
-  "type": "https://github.com/your-username/postpulse-backend/blob/main/docs/errors.md#type-mismatch",
+  "type": "https://github.com/AbhishekSharma-99/PostPulse-Backend/blob/main/docs/Errors.md#type-mismatch",
   "title": "Type Mismatch",
   "status": 400,
   "detail": "Invalid value 'abc' for parameter 'id'. Expected type: Long",
@@ -193,35 +170,6 @@ A path variable or request parameter could not be converted to its expected Java
 ```
 
 **Client action:** Ensure the parameter value matches the expected type documented in the API specification before retrying.
-
----
-
-### `#access-denied`
-
-**Title:** Access Denied
-**HTTP Status:** `403 Forbidden`
-
-**When it occurs:**
-The authenticated user does not have the required role or ownership to perform the requested operation. Authentication succeeded (the JWT was valid), but authorization failed.
-
-**Common scenarios:**
-- A user with the `ROLE_USER` role attempts an operation restricted to `ROLE_ADMIN`
-- A user attempts to update or delete a Post they do not own
-
-**Example response:**
-
-```json
-{
-  "type": "https://github.com/your-username/postpulse-backend/blob/main/docs/errors.md#access-denied",
-  "title": "Access Denied",
-  "status": 403,
-  "detail": "You do not have permission to perform this action.",
-  "instance": "/api/v1/admin/users",
-  "timestamp": "2025-01-15T10:35:00Z"
-}
-```
-
-**Client action:** Do not retry with the same credentials. Escalate to an account with the appropriate permissions or contact the system administrator.
 
 ---
 
@@ -242,7 +190,7 @@ The request did not include a valid JWT Bearer token, or the token has expired. 
 
 ```json
 {
-  "type": "https://github.com/your-username/postpulse-backend/blob/main/docs/errors.md#unauthorized",
+  "type": "https://github.com/AbhishekSharma-99/PostPulse-Backend/blob/main/docs/Errors.md#unauthorized",
   "title": "Unauthorized",
   "status": 401,
   "detail": "Authentication is required to access this resource.",
@@ -252,6 +200,91 @@ The request did not include a valid JWT Bearer token, or the token has expired. 
 ```
 
 **Client action:** Obtain a fresh JWT by calling `POST /api/v1/auth/login` and resubmit the request with the `Authorization: Bearer <token>` header.
+
+---
+
+### `#access-denied`
+
+**Title:** Access Denied
+**HTTP Status:** `403 Forbidden`
+
+**When it occurs:**
+The authenticated user does not have the required role or ownership to perform the requested operation. Authentication succeeded (the JWT was valid), but authorization failed.
+
+**Common scenarios:**
+- A user with the `ROLE_USER` role attempts an operation restricted to `ROLE_ADMIN`
+- A user attempts to update or delete a Post they do not own
+
+**Example response:**
+
+```json
+{
+  "type": "https://github.com/AbhishekSharma-99/PostPulse-Backend/blob/main/docs/Errors.md#access-denied",
+  "title": "Access Denied",
+  "status": 403,
+  "detail": "You do not have permission to perform this action.",
+  "instance": "/api/v1/admin/users",
+  "timestamp": "2025-01-15T10:35:00Z"
+}
+```
+
+**Client action:** Do not retry with the same credentials. Escalate to an account with the appropriate permissions or contact the system administrator.
+
+---
+
+### `#conflict`
+
+**Title:** Conflict  
+**HTTP Status:** `409 Conflict`
+
+**When it occurs:**  
+A resource with the same unique identifier already exists. Triggered when attempting
+to create a Post, Category, or other entity whose name or slug conflicts with an
+existing record.
+
+**Example triggers:**
+- `POST /api/v1/categories` — category named "Technology" already exists
+- `POST /api/v1/posts` — generated slug "getting-started" already exists
+
+**Example response:**
+
+```json
+{
+  "type": "https://github.com/AbhishekSharma-99/PostPulse-Backend/blob/main/docs/Errors.md#conflict",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "Category with name 'Technology' already exists.",
+  "instance": "/api/v1/categories",
+  "timestamp": "2026-05-06T12:00:00Z"
+}
+```
+
+**Client action:** Change the conflicting field value and retry.
+
+---
+
+### `#api-error`
+
+**Title:** API Error
+**HTTP Status:** `4xx` (varies — always inspect the `status` field)
+
+**When it occurs:**
+A domain-level rule was violated. This is a general-purpose error for business logic violations that do not fit a more specific category — for example, attempting to perform an action that conflicts with current system state (e.g., a user attempting to delete another user's post).
+
+**Example response:**
+
+```json
+{
+  "type": "https://github.com/AbhishekSharma-99/PostPulse-Backend/blob/main/docs/Errors.md#api-error",
+  "title": "API Error",
+  "status": 400,
+  "detail": "You can only update your own posts.",
+  "instance": "/api/v1/posts/12",
+  "timestamp": "2025-01-15T10:31:00Z"
+}
+```
+
+**Client action:** Read the `detail` field for a specific, human-readable reason. The `status` field determines the appropriate retry/escalation strategy.
 
 ---
 
@@ -267,7 +300,7 @@ An unexpected server-side error occurred that was not caused by the client reque
 
 ```json
 {
-  "type": "https://github.com/your-username/postpulse-backend/blob/main/docs/errors.md#internal-error",
+  "type": "https://github.com/AbhishekSharma-99/PostPulse-Backend/blob/main/docs/Errors.md#internal-error",
   "title": "Internal Server Error",
   "status": 500,
   "detail": "An unexpected error occurred. Please try again later.",
@@ -312,4 +345,4 @@ Interactive API documentation is available at:
 GET /swagger-ui.html
 ```
 
-All error response schemas are documented under the `PostPulseProblemDetail` component in the generated OpenAPI specification.
+All error response schemas are documented under the `ProblemDetails` component in the generated OpenAPI specification.
