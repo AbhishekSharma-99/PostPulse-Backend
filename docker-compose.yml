@@ -1,6 +1,10 @@
 services:
   mysql:
     image: mysql:8.0
+    command:
+      - --innodb-buffer-pool-size=128M
+      - --max-connections=30
+      - --table-open-cache=200
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
@@ -10,24 +14,28 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    mem_limit: 256m
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
+
   app:
-    build: .
+    image: ${DOCKERHUB_USERNAME}/postpulse-backend:latest
     env_file:
       - .env
     ports:
       - "8080:8080"
+    mem_limit: 512m
     depends_on:
-        mysql:
-            condition: service_healthy
+      mysql:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
+
 volumes:
   mysql_data:
