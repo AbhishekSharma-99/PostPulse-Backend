@@ -12,6 +12,14 @@ The API enforces a **three-tier editorial access model**:
 
 ---
 
+## Live Demo
+
+🔗 **Live API**: [http://15.206.200.130:8080/swagger-ui/index.html](http://15.206.200.130:8080/swagger-ui/index.html)
+
+Try it directly — no setup required. See [Demo Credentials](#demo-credentials) for test accounts.
+
+---
+
 ## Tech Stack
 
 | Layer         | Technology                                                    |
@@ -109,6 +117,8 @@ Hibernate is configured with `ddl-auto=validate` — it verifies entity-to-table
 
 ## Getting Started
 
+Want to run PostPulse locally or explore the codebase? Choose one of the options below.
+
 ### Prerequisites
 
 - Docker and Docker Compose, **or**
@@ -194,8 +204,14 @@ Use the `/api/v1/auth/login` endpoint to obtain a JWT, then click **Authorize** 
 
 Interactive Swagger UI is available at:
 
+**Local:**
 ```
 http://localhost:8080/swagger-ui/index.html
+```
+
+**Live (AWS EC2 deployment):**
+```
+http://15.206.200.130:8080/swagger-ui/index.html
 ```
 
 All endpoints are annotated with `@CommonApiResponses`, which documents standard 400, 401, 403, 404, and 500 error shapes in the OpenAPI spec. Error response bodies follow RFC 7807 `ProblemDetail` format with `type` URIs that dereference to `docs/Errors.md`.
